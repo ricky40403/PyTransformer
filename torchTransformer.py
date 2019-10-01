@@ -23,7 +23,7 @@ class Log(object):
 	
 	def __add__(self, other):
 		print("add")
-		# merge other branch
+		# merge other branch		
 		self.graph.update(other.graph)
 		layer_name = "add_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
@@ -35,7 +35,7 @@ class Log(object):
 	
 	def __iadd__(self, other):
 		print("iadd")		
-		# merge other branch
+		# merge other branch		
 		self.graph.update(other.graph)
 		layer_name = "add_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
@@ -138,25 +138,55 @@ class TorchTransformer(nn.Module):
 			# set trans function
 			self._raw_flatten = torch.flatten
 			torch.flatten = self._trans_flatten
-			tmp_model.forward(log)
-			
+			log = tmp_model.forward(log)
+			#print(log.graph)
 
 	def _trans_unit(self, model):		
 		for module_name in model._modules:			
 			# has children
 			if len(model._modules[module_name]._modules) > 0:
 				self._trans_unit(model._modules[module_name])
-			else:							
+			else:				
 				unitlayer = UnitLayer(getattr(model, module_name))				
 				setattr(model, module_name, unitlayer)			
 
-		return model				
+		return model
 	
+	def trans_layers(self, model):
+		if len(self._register_dict) == 0:
+			print("No layer to swap")
+			print("Please use register( {origin_layer}, {target_layer} ) to register layer")
+			return model
+		else:
+			for module_name in model._modules:			
+			# has children
+			if len(model._modules[module_name]._modules) > 0:
+				self.trans_layers(model._modules[module_name])
+			else:				
+				if (getattr(model, module_name) in self._register_dict.keys():
+					# need to add swap process
+					# should think if there is any input arg
+					pass	
+				
+			
+	# torch.flatten()
 	def _trans_flatten(self, input, start_dim = 0, end_dim = -1):
 		# input should be log
 		print("flatten")		
-		layer_name = "faltten_{}".format(len(self.graph))
+		layer_name = "torchFlatten_{}".format(len(input.graph))
 		input.graph[layer_name] = layer_name
 		input.bottoms[layer_name] = [input.cur_id]
 		input.cur_id = layer_name
 		return input
+					
+	# torch.max()
+	def _trans_max(self, input):
+		# input should be log
+		print("flatten")		
+		layer_name = "torchMax_{}".format(len(input.graph))
+		input.graph[layer_name] = layer_name
+		input.bottoms[layer_name] = [input.cur_id]
+		input.cur_id = layer_name
+		return input
+					
+
