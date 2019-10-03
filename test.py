@@ -16,5 +16,5 @@ model = models.__dict__["resnet18"]()
 
 print("----------------------------")
 transofrmer = TorchTransformer()
-net = transofrmer._build_graph(model)
+net = transofrmer.summary(model)
 #print(net)

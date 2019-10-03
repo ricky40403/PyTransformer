@@ -11,20 +11,34 @@ class Log(object):
 	def __init__(self):
 		self.graph = OrderedDict()
 		self.bottoms = OrderedDict()
+		self.output_shape = OrderedDict()
+		self.cur_tensor = None
 		self.cur_id = None
 	
 	# for general layer (should has only one input?)
-	def putLayer(self, layer):
+	def putLayer(self, layer):		
 		layer_id = id(layer)		
 		self.graph[layer_id] = layer
 		self.bottoms[layer_id] = [self.cur_id]
 		self.cur_id = layer_id
-		
+	
+	def getGraph(self):
+		return self.graph
+	
+	def getBottoms(self):
+		return self.bottoms
+	
+	def getTensor(self):
+		return self.cur_tensor
+	
+	def setTensor(self, tensor):
+		self.cur_tensor = cur_tensor
 	
 	def __add__(self, other):
 		print("add")
 		# merge other branch		
 		self.graph.update(other.graph)
+		self.bottoms.update(other.bottoms)
 		layer_name = "add_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -37,6 +51,7 @@ class Log(object):
 		print("iadd")		
 		# merge other branch		
 		self.graph.update(other.graph)
+		self.bottoms.update(other.bottoms)
 		layer_name = "add_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -49,6 +64,7 @@ class Log(object):
 		print("sub")
 		# merge other branch
 		self.graph.update(other.graph)
+		self.bottoms.update(other.bottoms)
 		layer_name = "sub_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -61,6 +77,7 @@ class Log(object):
 		print("isub")
 		# merge other branch
 		self.graph.update(other.graph)
+		self.bottoms.update(other.bottoms)
 		layer_name = "sub_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -73,6 +90,7 @@ class Log(object):
 		print("mul")
 		# merge other branch
 		self.graph.update(other.graph)
+		self.bottoms.update(other.bottoms)
 		layer_name = "mul_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -85,6 +103,7 @@ class Log(object):
 		print("imul")
 		# merge other branch
 		self.graph.update(other.graph)
+		self.bottoms.update(other.bottoms)
 		layer_name = "mul_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -116,6 +135,8 @@ class TorchTransformer(nn.Module):
 		self._module_graph = OrderedDict()
 		self._register_dict = OrderedDict()
 		
+		self.log = Log()
+		
 		self._raw_cat = None
 		self._raw_split = None
 		self._raw_max = None
@@ -133,13 +154,79 @@ class TorchTransformer(nn.Module):
 			tmp_model = self._trans_unit(copy.deepcopy(model))
 			# tmp_model = self._trans_unit (model)			
 			
-			print("Log")
-			log = Log()
+			print("Log")			
 			# set trans function
 			self._raw_flatten = torch.flatten
 			torch.flatten = self._trans_flatten
-			log = tmp_model.forward(log)
-			#print(log.graph)
+			self.log = tmp_model.forward(self.log)
+	
+	def summary(self, model = None):
+		model_graph = self.log.getGraph()
+		# if graph empty
+		if not model_graph:
+			if model is None:
+				raise ValueError("Please input model to summary")
+			else:
+				self._build_graph(model)
+		
+		# get graph again
+		model_graph = self.log.getGraph()
+		bottoms_graph = self.log.getBottoms()
+		# loop graph
+		print("##########################################################################################")
+		line_title = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format("Index","Layer (type)", "Bottoms","Output Shape", "Param #")
+		print(line_title)
+		print("---------------------------------------------------------------------------")	
+		
+		
+		for layer_index, key in enumerate(model_graph):	
+			#print(model_graph[key])
+			#print(bottoms_graph[key])
+			# bottom is data
+			if bottoms_graph[key][0] == None:				
+				# data input
+				layer_type = "Data"
+				bottoms = ""
+				output_shape = ""
+				param_num = ""
+				data_layer = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format(layer_index, layer_type, "","Output Shape", "Param #")
+				print(data_layer)
+				print("---------------------------------------------------------------------------")
+				layer = model_graph[key]
+				layer_type = layer.__class__.__name__
+				if layer_type == "str":
+					layer_type = key
+				else:
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
+
+
+				bottoms = ""
+				output_shape = ""
+				param_num = ""
+				new_layer = "{:5}| {:<15} | {:<15} {:>25} {:>15}".format(layer_index+1, layer_type, "Data","Output Shape", "Param #")
+				print(new_layer)
+				pass
+			else:				
+				layer = model_graph[key]
+				layer_type = layer.__class__.__name__
+				if layer_type == "str":
+					layer_type = key
+				else:
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
+				#print(layer_type)				
+				bottoms = ["{}_{}".format(model_graph[b_key].__class__.__name__, list(model_graph.keys()).index(b_key)+1) for b_key in bottoms_graph[key]]				
+				output_shape = ""
+				param_num = ""
+				for idx, b in enumerate(bottoms):					
+					# if more than one bottom, only print bottom
+					if idx == 0:
+						#print("00000")
+						new_layer = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format(layer_index+1, layer_type, b,"Output Shape", "Param #")				
+					else:
+						new_layer = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format("", "", b, "", "")
+					print(new_layer)
+			print("---------------------------------------------------------------------------")
+				
 
 	def _trans_unit(self, model):		
 		for module_name in model._modules:			
@@ -159,14 +246,14 @@ class TorchTransformer(nn.Module):
 			return model
 		else:
 			for module_name in model._modules:			
-			# has children
-			if len(model._modules[module_name]._modules) > 0:
-				self.trans_layers(model._modules[module_name])
-			else:				
-				if (getattr(model, module_name) in self._register_dict.keys():
-					# need to add swap process
-					# should think if there is any input arg
-					pass	
+				# has children
+				if len(model._modules[module_name]._modules) > 0:
+					self.trans_layers(model._modules[module_name])
+				else:				
+					if (getattr(model, module_name)) in self._register_dict.keys():
+						# need to add swap process
+						# should think if there is any input arg
+						pass	
 				
 			
 	# torch.flatten()
