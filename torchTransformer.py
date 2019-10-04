@@ -33,7 +33,7 @@ class Log(object):
 		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)
 		layer_id = id(copy.deepcopy(layer))
 		self.graph[layer_id] = layer
-		self.bottoms[layer_id] = [self.cur_id]
+		self.bottoms[layer_id] = [self.cur_id]		
 		self.cur_id = layer_id
 	
 	def getGraph(self):
@@ -56,10 +56,11 @@ class Log(object):
 			self.output_shape[self.cur_id] = None
 	
 	def __add__(self, other):
-		print("add")
+		#print("add")
 		# merge other branch		
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
+		self.output_shape.update(other.output_shape)
 		layer_name = "add_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -71,24 +72,26 @@ class Log(object):
 		return self		
 	
 	def __iadd__(self, other):
-		print("iadd")		
+		#print("iadd")		
 		# merge other branch		
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
+		self.output_shape.update(other.output_shape)
 		layer_name = "iadd_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
 		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name		
+		self.cur_id = layer_name
 		# save memory
 		del other		
 		return self
 	
 	def __sub__(self, other):
-		print("sub")
+		#print("sub")
 		# merge other branch
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
+		self.output_shape.update(other.output_shape)
 		layer_name = "sub_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -99,10 +102,11 @@ class Log(object):
 		return self
 	
 	def __isub__(self, other):
-		print("isub")
+		#print("isub")
 		# merge other branch
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
+		self.output_shape.update(other.output_shape)
 		layer_name = "sub_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -113,10 +117,11 @@ class Log(object):
 		return self
 	
 	def __mul__(self, other):
-		print("mul")
+		#print("mul")
 		# merge other branch
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
+		self.output_shape.update(other.output_shape)
 		layer_name = "mul_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -127,10 +132,11 @@ class Log(object):
 		return self
 	
 	def __imul__(self, other):
-		print("imul")
+		#print("imul")
 		# merge other branch
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
+		self.output_shape.update(other.output_shape)
 		layer_name = "mul_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
@@ -150,19 +156,22 @@ class UnitLayer(nn.Module):
 
 	# general layer should has only one input?
 	def forward(self, log, *args):
-		log = copy.deepcopy(log)
-		log.putLayer(self.origin_layer)		
+		# prevent overwrite log for other forward flow
+		cur_log = copy.deepcopy(log)
+		cur_log.putLayer(self.origin_layer)
 		log_tensor = log.getTensor()
-		# set as leaf for copy
-		print("------------------------------------------------")
-		print(self.origin_layer)
 		
+		#print("------------------------------------------------")
+		#print(self.origin_layer)
+		# set as leaf for copy
 		out_tensor = self.origin_layer(log_tensor).clone().detach()
 		
 		
-		log.setTensor(out_tensor)
+		cur_log.setTensor(out_tensor)
 		
-		return log
+		#cur_log.putLayer(self.origin_layer)
+		
+		return cur_log
 
 
 
@@ -248,16 +257,26 @@ class TorchTransformer(nn.Module):
 			else:				
 				layer = model_graph[key]
 				layer_type = layer.__class__.__name__
+				
 				if layer_type == "str":
 					layer_type = key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-				print(layer_type)				
-				bottoms = ["{}_{}".format(model_graph[b_key].__class__.__name__, list(model_graph.keys()).index(b_key)+1) for b_key in bottoms_graph[key]]				
+				
+				bottoms = []
+				for b_key in bottoms_graph[key]:
+					bottom = model_graph[b_key].__class__.__name__
+					if bottom == "str":
+						bottom = b_key
+					else:
+						bottom = bottom + "_{}".format(layer_index + 1)
+					
+					bottoms.append(bottom)
+				#bottoms = ["{}_{}".format(model_graph[b_key].__class__.__name__, list(model_graph.keys()).index(b_key)+1) for b_key in bottoms_graph[key]]				
 				if key in output_shape_graph:
 					output_shape = "[{}]".format(tuple(output_shape_graph[key]))
 				else:
-					output_shape = ""
+					output_shape = "Error"
 				param_num = ""
 				for idx, b in enumerate(bottoms):					
 					# if more than one bottom, only print bottom
