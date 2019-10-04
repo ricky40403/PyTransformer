@@ -4,7 +4,7 @@ import torchvision.models as models
 
 from torchTransformer import TorchTransformer
 
-model = models.__dict__["resnet18"]()
+model = models.__dict__["resnet50"]()
 #print(len(model._modules))
 #sys.exit()
 
@@ -16,5 +16,6 @@ model = models.__dict__["resnet18"]()
 
 print("----------------------------")
 transofrmer = TorchTransformer()
+print(model)
 net = transofrmer.summary(model)
 #print(net)

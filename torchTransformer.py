@@ -7,6 +7,19 @@ import torch.nn.functional as F
 from collections import OrderedDict
 
 
+class _ReplaceFunc(object):
+    """!
+    This Function replace torch functions with self-define Function.
+    Inorder to get the imformation of torch model layer infomration.
+    """
+    def __init__(self, ori_func, replace_func, **kwargs):
+        self.torch_func = ori_func
+        self.replace_func = replace_func
+
+    def __call__(self, *args, **kwargs):
+        out = self.replace_func(self.torch_func, *args, **kwargs)
+        return out
+
 class Log(object):
 	def __init__(self):
 		self.graph = OrderedDict()
@@ -17,7 +30,8 @@ class Log(object):
 	
 	# for general layer (should has only one input?)
 	def putLayer(self, layer):		
-		layer_id = id(layer)		
+		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)
+		layer_id = id(copy.deepcopy(layer))
 		self.graph[layer_id] = layer
 		self.bottoms[layer_id] = [self.cur_id]
 		self.cur_id = layer_id
@@ -28,11 +42,18 @@ class Log(object):
 	def getBottoms(self):
 		return self.bottoms
 	
+	def getOutShapes(self):
+		return self.output_shape
+	
 	def getTensor(self):
 		return self.cur_tensor
 	
 	def setTensor(self, tensor):
-		self.cur_tensor = cur_tensor
+		self.cur_tensor = tensor
+		if tensor is not None:
+			self.output_shape[self.cur_id] = self.cur_tensor.size()
+		else:
+			self.output_shape[self.cur_id] = None
 	
 	def __add__(self, other):
 		print("add")
@@ -42,9 +63,11 @@ class Log(object):
 		layer_name = "add_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+		self.output_shape[layer_name] = self.cur_tensor.size()
 		self.cur_id = layer_name
 		# save memory
-		del other
+		del other		
+		
 		return self		
 	
 	def __iadd__(self, other):
@@ -52,12 +75,13 @@ class Log(object):
 		# merge other branch		
 		self.graph.update(other.graph)
 		self.bottoms.update(other.bottoms)
-		layer_name = "add_{}".format(len(self.graph))
+		layer_name = "iadd_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.cur_id = layer_name
+		self.output_shape[layer_name] = self.cur_tensor.size()
+		self.cur_id = layer_name		
 		# save memory
-		del other
+		del other		
 		return self
 	
 	def __sub__(self, other):
@@ -68,6 +92,7 @@ class Log(object):
 		layer_name = "sub_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+		self.output_shape[layer_name] = self.cur_tensor.size()
 		self.cur_id = layer_name
 		# save memory
 		del other
@@ -81,6 +106,7 @@ class Log(object):
 		layer_name = "sub_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+		self.output_shape[layer_name] = self.cur_tensor.size()
 		self.cur_id = layer_name
 		# save memory
 		del other
@@ -94,6 +120,7 @@ class Log(object):
 		layer_name = "mul_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+		self.output_shape[layer_name] = self.cur_tensor.size()
 		self.cur_id = layer_name
 		# save memory
 		del other
@@ -107,6 +134,7 @@ class Log(object):
 		layer_name = "mul_{}".format(len(self.graph))
 		self.graph[layer_name] = layer_name
 		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+		self.output_shape[layer_name] = self.cur_tensor.size()
 		self.cur_id = layer_name
 		# save memory
 		del other
@@ -115,16 +143,26 @@ class Log(object):
 class UnitLayer(nn.Module):
 	def __init__(self, ori_layer):
 		super(UnitLayer, self).__init__()
-		self.origin_layer = ori_layer		
+		self.origin_layer = ori_layer
 		
 	def setOrigin(self, ori_layer):
 		self.origin_layer = ori_layer
 
 	# general layer should has only one input?
 	def forward(self, log, *args):
-		log.putLayer(self.origin_layer)	
-			
-		return copy.deepcopy(log)
+		log = copy.deepcopy(log)
+		log.putLayer(self.origin_layer)		
+		log_tensor = log.getTensor()
+		# set as leaf for copy
+		print("------------------------------------------------")
+		print(self.origin_layer)
+		
+		out_tensor = self.origin_layer(log_tensor).clone().detach()
+		
+		
+		log.setTensor(out_tensor)
+		
+		return log
 
 
 
@@ -146,7 +184,8 @@ class TorchTransformer(nn.Module):
 	def register(self, origin_class, target_class):
 		pass
 	
-	def _build_graph(self, model):
+	def _build_graph(self, model, input_tensor = None):
+		self.log.setTensor(input_tensor)
 		# if graph is empty, buld
 		if not self._module_graph:
 			print("set unit")
@@ -157,24 +196,26 @@ class TorchTransformer(nn.Module):
 			print("Log")			
 			# set trans function
 			self._raw_flatten = torch.flatten
-			torch.flatten = self._trans_flatten
+			torch.flatten = _ReplaceFunc(self._raw_flatten, self._trans_flatten)
 			self.log = tmp_model.forward(self.log)
 	
-	def summary(self, model = None):
+	def summary(self, model = None, input_tensor = None):
+		input_tensor = torch.randn([1, 3, 224, 224])		
 		model_graph = self.log.getGraph()
 		# if graph empty
 		if not model_graph:
 			if model is None:
 				raise ValueError("Please input model to summary")
 			else:
-				self._build_graph(model)
+				self._build_graph(model, input_tensor)
 		
-		# get graph again
+		# get dicts
 		model_graph = self.log.getGraph()
 		bottoms_graph = self.log.getBottoms()
+		output_shape_graph = self.log.getOutShapes()
 		# loop graph
 		print("##########################################################################################")
-		line_title = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format("Index","Layer (type)", "Bottoms","Output Shape", "Param #")
+		line_title = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format("Index","Layer (type)", "Bottoms","Output Shape", "Param #")
 		print(line_title)
 		print("---------------------------------------------------------------------------")	
 		
@@ -189,21 +230,19 @@ class TorchTransformer(nn.Module):
 				bottoms = ""
 				output_shape = ""
 				param_num = ""
-				data_layer = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format(layer_index, layer_type, "","Output Shape", "Param #")
+				data_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, "", "", "")
 				print(data_layer)
 				print("---------------------------------------------------------------------------")
-				layer = model_graph[key]
+				layer = model_graph[key]				
 				layer_type = layer.__class__.__name__
 				if layer_type == "str":
 					layer_type = key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-
-
 				bottoms = ""
-				output_shape = ""
+				output_shape = "[{}]".format(tuple(output_shape_graph[key]))
 				param_num = ""
-				new_layer = "{:5}| {:<15} | {:<15} {:>25} {:>15}".format(layer_index+1, layer_type, "Data","Output Shape", "Param #")
+				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "Data", output_shape, "Param #")
 				print(new_layer)
 				pass
 			else:				
@@ -213,17 +252,20 @@ class TorchTransformer(nn.Module):
 					layer_type = key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-				#print(layer_type)				
+				print(layer_type)				
 				bottoms = ["{}_{}".format(model_graph[b_key].__class__.__name__, list(model_graph.keys()).index(b_key)+1) for b_key in bottoms_graph[key]]				
-				output_shape = ""
+				if key in output_shape_graph:
+					output_shape = "[{}]".format(tuple(output_shape_graph[key]))
+				else:
+					output_shape = ""
 				param_num = ""
 				for idx, b in enumerate(bottoms):					
 					# if more than one bottom, only print bottom
 					if idx == 0:
 						#print("00000")
-						new_layer = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format(layer_index+1, layer_type, b,"Output Shape", "Param #")				
+						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, b, output_shape, "Param #")				
 					else:
-						new_layer = "{:>5}| {:<15} | {:<15} {:>25} {:>15}".format("", "", b, "", "")
+						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format("", "", b, "", "")
 					print(new_layer)
 			print("---------------------------------------------------------------------------")
 				
@@ -257,14 +299,27 @@ class TorchTransformer(nn.Module):
 				
 			
 	# torch.flatten()
-	def _trans_flatten(self, input, start_dim = 0, end_dim = -1):
-		# input should be log
-		print("flatten")		
-		layer_name = "torchFlatten_{}".format(len(input.graph))
-		input.graph[layer_name] = layer_name
-		input.bottoms[layer_name] = [input.cur_id]
-		input.cur_id = layer_name
-		return input
+	def _trans_flatten(self, raw_func, log, start_dim = 0, end_dim = -1):
+		print("------------------------------------------------")	
+		
+		log = copy.deepcopy(log)
+		
+		# input should be log		
+		print("flatten")
+		
+		layer_name = "torchFlatten_{}".format(len(log.getGraph()))
+		log.graph[layer_name] = layer_name
+		log.bottoms[layer_name] = [log.cur_id]
+		log.cur_id = layer_name			
+		
+		log_tensor = log.getTensor()
+		
+		# set as leaf for copy					
+		out_tensor = raw_func(log_tensor, start_dim = start_dim, end_dim = end_dim).clone().detach()		
+		
+		log.setTensor(out_tensor)
+		
+		return log
 					
 	# torch.max()
 	def _trans_max(self, input):
