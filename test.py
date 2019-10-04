@@ -3,7 +3,7 @@ import torchvision
 import torchvision.models as models
 
 from torchTransformer import TorchTransformer
-
+from quantize import QConv2d
 model = models.__dict__["resnet18"]()
 #print(len(model._modules))
 #sys.exit()
@@ -16,5 +16,7 @@ model = models.__dict__["resnet18"]()
 
 print("----------------------------")
 transofrmer = TorchTransformer()
+#transofrmer.register(nn.Conv2d, QConv2d)
+#transofrmer.trans_layers(model)
 net = transofrmer._build_graph(model)
 #print(net)

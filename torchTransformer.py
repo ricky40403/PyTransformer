@@ -12,6 +12,7 @@ class Log():
 		self.graph = OrderedDict()
 		self.bottoms = OrderedDict()
 		self.cur_id = None
+		self.t = torch.ones((10, 10, 10))
 	
 	# for general layer (should has only one input?)
 	def putLayer(self, layer):
@@ -145,6 +146,8 @@ class TorchTransformer(nn.Module):
 
 	# register class to trans
 	def register(self, origin_class, target_class):
+		print("register", origin_class, target_class)
+		self._register_dict[origin_class] = target_class
 		pass
 	
 
@@ -180,16 +183,17 @@ class TorchTransformer(nn.Module):
 	
 
 	def trans_layers(self, model):
+		print("trans layer")
 		if len(self._register_dict) == 0:
 			print("No layer to swap")
 			print("Please use register( {origin_layer}, {target_layer} ) to register layer")
 			return model
 		else:
-			for module_name in model._modules:			
+			for module_name in model._modules:	
 				# has children
 				if len(model._modules[module_name]._modules) > 0:
 					self.trans_layers(model._modules[module_name])
-				else:				
+				else:
 					if getattr(model, module_name) in self._register_dict.keys():
 						# need to add swap process
 						# should think if there is any input arg
