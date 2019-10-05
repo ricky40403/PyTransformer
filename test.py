@@ -4,7 +4,7 @@ import torchvision.models as models
 
 from torchTransformer import TorchTransformer
 
-model = models.__dict__["resnet50"]()
+model = models.__dict__["resnet101"]()
 #print(len(model._modules))
 #sys.exit()
 

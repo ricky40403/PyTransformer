@@ -195,12 +195,12 @@ class TorchTransformer(nn.Module):
 		self.log.setTensor(input_tensor)
 		# if graph is empty, buld
 		if not self._module_graph:
-			print("set unit")
+			# print("set unit")
 			# increase memory??
 			tmp_model = self._trans_unit(copy.deepcopy(model))
 			# tmp_model = self._trans_unit (model)			
 			
-			print("Log")			
+			# print("Log")			
 			# set trans function
 			self._raw_cat = torch.cat
 			torch.cat = _ReplaceFunc(self._raw_cat, self._trans_cat)			
