@@ -216,7 +216,7 @@ class TorchTransformer(nn.Module):
 			else:
 				self._build_graph(model, input_tensor)
 		
-		# get dicts
+		# get dicts and variables
 		model_graph = self.log.getGraph()
 		bottoms_graph = self.log.getBottoms()
 		output_shape_graph = self.log.getOutShapes()
@@ -230,27 +230,29 @@ class TorchTransformer(nn.Module):
 		
 		
 		for layer_index, key in enumerate(model_graph):	
-			#print(model_graph[key])
-			#print(bottoms_graph[key])
+			
 			# bottom is data
 			if bottoms_graph[key][0] == None:				
 				# data input
-				layer_type = "Data"
-				bottoms = ""
-				output_shape = ""
-				param_num = ""
+				layer_type = "Data"								
 				data_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, "", "", "0")
 				print(data_layer)
 				print("---------------------------------------------------------------------------")
-				# first layer				
+				
+				# first layer
+				# Layer information
 				layer = model_graph[key]
 				layer_type = layer.__class__.__name__
 				if layer_type == "str":
 					layer_type = key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-				bottoms = ""
+				# Layer Bottoms is Data
+				
+				# Layer Output shape
 				output_shape = "[{}]".format(tuple(output_shape_graph[key]))
+				
+				# Layer Params
 				param_weight_num = 0				
 				if hasattr(layer, "weight") and hasattr(layer.weight, "size"):
 					param_weight_num += torch.prod(torch.LongTensor(list(layer.weight.size())))
@@ -262,32 +264,38 @@ class TorchTransformer(nn.Module):
 						totoal_trainable_params += param_weight_num
 				
 				total_params += param_weight_num
+				
 				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "Data", output_shape, param_weight_num)
 				print(new_layer)
-				pass
-			else:				
+				
+			else:
+				# Layer Information
 				layer = model_graph[key]
 				layer_type = layer.__class__.__name__
 				
+				# add, sub, mul...,etc. (custom string)
 				if layer_type == "str":
 					layer_type = key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
 				
+				# Layer Bottoms
 				bottoms = []
 				for b_key in bottoms_graph[key]:
 					bottom = model_graph[b_key].__class__.__name__
 					if bottom == "str":
 						bottom = b_key
 					else:
-						bottom = bottom + "_{}".format(layer_index + 1)
-					
+						bottom = bottom + "_{}".format(layer_index + 1)					
 					bottoms.append(bottom)
-				#bottoms = ["{}_{}".format(model_graph[b_key].__class__.__name__, list(model_graph.keys()).index(b_key)+1) for b_key in bottoms_graph[key]]				
+				
+				# Layer Output Shape
 				if key in output_shape_graph:
 					output_shape = "[{}]".format(tuple(output_shape_graph[key]))
 				else:
-					output_shape = "Error"
+					output_shape = "None"
+				
+				# Layer Params
 				param_weight_num = 0				
 				if hasattr(layer, "weight") and hasattr(layer.weight, "size"):
 					param_weight_num += torch.prod(torch.LongTensor(list(layer.weight.size())))
@@ -298,6 +306,8 @@ class TorchTransformer(nn.Module):
 					if layer.bias.requires_grad:
 						totoal_trainable_params += param_weight_num			
 				total_params += param_weight_num
+				
+				# Print (one bottom a line)
 				for idx, b in enumerate(bottoms):					
 					# if more than one bottom, only print bottom
 					if idx == 0:
