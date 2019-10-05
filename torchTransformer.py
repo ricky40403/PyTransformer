@@ -164,9 +164,7 @@ class UnitLayer(nn.Module):
 		#print("------------------------------------------------")
 		#print(self.origin_layer)
 		# set as leaf for copy
-		out_tensor = self.origin_layer(log_tensor).clone().detach()
-		
-		
+		out_tensor = self.origin_layer(log_tensor).clone().detach()		
 		cur_log.setTensor(out_tensor)
 		
 		#cur_log.putLayer(self.origin_layer)
@@ -222,6 +220,8 @@ class TorchTransformer(nn.Module):
 		model_graph = self.log.getGraph()
 		bottoms_graph = self.log.getBottoms()
 		output_shape_graph = self.log.getOutShapes()
+		totoal_trainable_params = 0
+		total_params = 0
 		# loop graph
 		print("##########################################################################################")
 		line_title = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format("Index","Layer (type)", "Bottoms","Output Shape", "Param #")
@@ -239,10 +239,11 @@ class TorchTransformer(nn.Module):
 				bottoms = ""
 				output_shape = ""
 				param_num = ""
-				data_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, "", "", "")
+				data_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, "", "", "0")
 				print(data_layer)
 				print("---------------------------------------------------------------------------")
-				layer = model_graph[key]				
+				# first layer				
+				layer = model_graph[key]
 				layer_type = layer.__class__.__name__
 				if layer_type == "str":
 					layer_type = key
@@ -250,8 +251,18 @@ class TorchTransformer(nn.Module):
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
 				bottoms = ""
 				output_shape = "[{}]".format(tuple(output_shape_graph[key]))
-				param_num = ""
-				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "Data", output_shape, "Param #")
+				param_weight_num = 0				
+				if hasattr(layer, "weight") and hasattr(layer.weight, "size"):
+					param_weight_num += torch.prod(torch.LongTensor(list(layer.weight.size())))
+					if layer.weight.requires_grad:
+						totoal_trainable_params += param_weight_num
+				if hasattr(layer, "bias") and hasattr(layer.weight, "bias"):
+					param_weight_num += torch.prod(torch.LongTensor(list(layer.bias.size())))				
+					if layer.bias.requires_grad:
+						totoal_trainable_params += param_weight_num
+				
+				total_params += param_weight_num
+				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "Data", output_shape, param_weight_num)
 				print(new_layer)
 				pass
 			else:				
@@ -277,17 +288,32 @@ class TorchTransformer(nn.Module):
 					output_shape = "[{}]".format(tuple(output_shape_graph[key]))
 				else:
 					output_shape = "Error"
-				param_num = ""
+				param_weight_num = 0				
+				if hasattr(layer, "weight") and hasattr(layer.weight, "size"):
+					param_weight_num += torch.prod(torch.LongTensor(list(layer.weight.size())))
+					if layer.weight.requires_grad:
+						totoal_trainable_params += param_weight_num
+				if hasattr(layer, "bias") and hasattr(layer.weight, "bias"):
+					param_weight_num += torch.prod(torch.LongTensor(list(layer.bias.size())))				
+					if layer.bias.requires_grad:
+						totoal_trainable_params += param_weight_num			
+				total_params += param_weight_num
 				for idx, b in enumerate(bottoms):					
 					# if more than one bottom, only print bottom
 					if idx == 0:
 						#print("00000")
-						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, b, output_shape, "Param #")				
+						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, b, output_shape, param_weight_num)				
 					else:
 						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format("", "", b, "", "")
 					print(new_layer)
 			print("---------------------------------------------------------------------------")
-				
+		
+		
+		# total information
+		print("==================================================================================")
+		print("Total Trainable params: {} ".format(totoal_trainable_params))
+		print("Total Non-Trainable params: {} ".format(total_params - totoal_trainable_params))
+		print("Total params: {} ".format(total_params))
 
 	def _trans_unit(self, model):		
 		for module_name in model._modules:			

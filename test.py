@@ -16,6 +16,6 @@ model = models.__dict__["resnet50"]()
 
 print("----------------------------")
 transofrmer = TorchTransformer()
-print(model)
+#print(model)
 net = transofrmer.summary(model)
 #print(net)
