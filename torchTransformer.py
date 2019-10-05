@@ -182,10 +182,10 @@ class TorchTransformer(nn.Module):
 		
 		self.log = Log()
 		
-		self._raw_cat = None
-		self._raw_split = None
+		self._raw_cat = None		
 		self._raw_max = None
 		self._raw_flatten = None
+		self._raw_split = None
 
 	# register class to trans
 	def register(self, origin_class, target_class):
@@ -202,9 +202,24 @@ class TorchTransformer(nn.Module):
 			
 			print("Log")			
 			# set trans function
+			self._raw_cat = torch.cat
+			torch.cat = _ReplaceFunc(self._raw_cat, self._trans_cat)			
+			self._raw_max = torch.max
+			torch.max = _ReplaceFunc(self._raw_max, self._trans_max)
 			self._raw_flatten = torch.flatten
 			torch.flatten = _ReplaceFunc(self._raw_flatten, self._trans_flatten)
+			self._raw_split = torch.split
+			torch.split = _ReplaceFunc(self._raw_split, self._trans_split)
+			
+			
 			self.log = tmp_model.forward(self.log)
+			
+			# set back 
+			torch.cat = self._raw_cat
+			torch.max = self._raw_max
+			torch.flatten = self._raw_flatten
+			torch.split = self._raw_split
+			
 	
 	def summary(self, model = None, input_tensor = None):
 		input_tensor = torch.randn([1, 3, 224, 224])		
@@ -352,38 +367,90 @@ class TorchTransformer(nn.Module):
 						# should think if there is any input arg
 						pass	
 				
-			
-	# torch.flatten()
-	def _trans_flatten(self, raw_func, log, start_dim = 0, end_dim = -1):
-		print("------------------------------------------------")	
-		
-		log = copy.deepcopy(log)
-		
+	
+	
+	# torch.cat()
+	def _trans_cat(self, input, dim=0, out=None):
 		# input should be log		
-		print("flatten")
+		# copy log to prevent overwrite
+		log = copy.deepcopy(log)	
 		
+		# Layer information		
+		layer_name = "torchCat_{}".format(len(input.graph))
+		input.graph[layer_name] = layer_name
+		input.bottoms[layer_name] = [input.cur_id]
+		input.cur_id = layer_name		
+		
+		# fot output shape
+		# handle tensor operation
+		log_tensor = log.getTensor()		
+		# set as leaf for copy					
+		out_tensor = raw_func(log_tensor, dim=dim, out=out).clone().detach()		
+		log.setTensor(out_tensor)
+		
+		return log
+	
+	# torch.flatten()
+	def _trans_flatten(self, raw_func, log, start_dim = 0, end_dim = -1):		
+		# input should be log		
+		# copy log to prevent overwrite
+		log = copy.deepcopy(log)	
+		
+		# Layer information		
 		layer_name = "torchFlatten_{}".format(len(log.getGraph()))
 		log.graph[layer_name] = layer_name
 		log.bottoms[layer_name] = [log.cur_id]
 		log.cur_id = layer_name			
 		
-		log_tensor = log.getTensor()
-		
+		# fot output shape
+		# handle tensor operation
+		log_tensor = log.getTensor()		
 		# set as leaf for copy					
 		out_tensor = raw_func(log_tensor, start_dim = start_dim, end_dim = end_dim).clone().detach()		
-		
 		log.setTensor(out_tensor)
 		
 		return log
 					
 	# torch.max()
-	def _trans_max(self, input):
-		# input should be log
-		print("flatten")		
+	def _trans_max(self, input):	
+		# input should be log		
+		# copy log to prevent overwrite
+		log = copy.deepcopy(log)	
+		
+		# Layer information		
 		layer_name = "torchMax_{}".format(len(input.graph))
 		input.graph[layer_name] = layer_name
 		input.bottoms[layer_name] = [input.cur_id]
-		input.cur_id = layer_name
-		return input
+		input.cur_id = layer_name		
+		
+		# fot output shape
+		# handle tensor operation
+		log_tensor = log.getTensor()		
+		# set as leaf for copy					
+		out_tensor = raw_func(log_tensor).clone().detach()		
+		log.setTensor(out_tensor)
+		
+		return log
+	
+	# torch.split()
+	def _trans_split(self, input, split_size_or_sections, dim=0):	
+		# input should be log		
+		# copy log to prevent overwrite
+		log = copy.deepcopy(log)	
+		
+		# Layer information		
+		layer_name = "torchSplit_{}".format(len(input.graph))
+		input.graph[layer_name] = layer_name
+		input.bottoms[layer_name] = [input.cur_id]
+		input.cur_id = layer_name		
+		
+		# fot output shape
+		# handle tensor operation
+		log_tensor = log.getTensor()		
+		# set as leaf for copy					
+		out_tensor = raw_func(log_tensor, split_size_or_sections, dim = dim).clone().detach()		
+		log.setTensor(out_tensor)
+		
+		return log
 					
 
