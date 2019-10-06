@@ -27,7 +27,7 @@ class Log(object):
 		self.output_shape = OrderedDict()
 		self.cur_tensor = None
 		self.cur_id = None
-		self.t = torch.ones((10, 10, 10))
+
 	
 	# for general layer (should has only one input?)
 	def putLayer(self, layer):		
@@ -153,18 +153,24 @@ class Log(object):
 		return self
 
 
-	def reshape(self, size, axis=-1):
-		print("reshape")
-		# merge other branch
-		layer_name = "reshape_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id]
-		self.cur_id = layer_name
-
+	def reshape(self, *size):
+		self.cur_tensor = self.cur_tensor.reshape(size).clone()
+		#print("rehsape", type(self.cur_tensor.reshape(size)))
 		return self
 
-	def size(self, axis=-1):
-		return 10
+
+	def size(self, dim=None):
+		return self.cur_tensor.size(dim) if dim is not None else self.cur_tensor.size()
+
+
+	# def __getattr__(self, name, *args, **kwargs):
+	# 	print(name, args, kwargs, type(name), type(args), type(kwargs))
+	# 	if '__' not in name: # a work around, aims to catch all method calls to torch.tensor
+	# 		print(self.cur_tensor.shape)
+	# 		getattr(self.cur_tensor, name)(args, kwargs)
+	# 		return self
+
+	# 	return self.__getattribute__(name)
 
 
 class UnitLayer(nn.Module):
@@ -203,6 +209,12 @@ class TorchTransformer(nn.Module):
 		self._register_dict = OrderedDict()
 		
 		self.log = Log()
+		print("CREATE Log")
+		print(hasattr(self.log, '__deepcopy__'))
+		print(hasattr(self.log.cur_tensor, '__deepcopy__'))
+		print(getattr(self.log, 'getTensor'))
+		print(dir(self.log))
+		#print(getattr(self.log, '__deepcopy__'))
 		
 		self._raw_cat = None		
 		self._raw_max = None
@@ -366,10 +378,10 @@ class TorchTransformer(nn.Module):
 		print("Total params: {} ".format(total_params))
 
 	def _trans_unit(self, model):
-		print("TRNS_UNIT")
+		# print("TRNS_UNIT")
 		for module_name in model._modules:			
 			# has children
-			print('module_name', module_name, type(model._modules[module_name]))
+			# print('module_name', module_name, type(model._modules[module_name]))
 			if len(model._modules[module_name]._modules) > 0:
 				self._trans_unit(model._modules[module_name])
 			else:				
