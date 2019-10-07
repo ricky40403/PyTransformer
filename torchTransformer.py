@@ -273,6 +273,7 @@ class TorchTransformer(nn.Module):
 			
 			self.log = tmp_model.forward(self.log)
 			self.log.view(-1)
+			
 			# set back 
 			torch.cat = self._raw_cat
 			torch.max = self._raw_max
@@ -457,7 +458,7 @@ class TorchTransformer(nn.Module):
 	def _trans_cat(self, raw_func, log, dim=0, out=None):
 		# input should be log		
 		# copy log to prevent overwrite
-		log = copy.deepcopy(log)	
+		log = copy.deepcopy(log)
 		
 		# Layer information		
 		layer_name = "torchCat_{}".format(len(log.graph))
