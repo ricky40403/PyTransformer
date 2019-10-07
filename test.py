@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torchvision
 import torchvision.models as models
@@ -16,9 +17,11 @@ model = models.__dict__["resnet18"]()
 
 print("----------------------------")
 transofrmer = TorchTransformer()
-#transofrmer.register(nn.Conv2d, QConv2d)
-#transofrmer.trans_layers(model)
+transofrmer.register(nn.Conv2d, QConv2d)
+
+transofrmer.trans_layers(model)
+
 #net = transofrmer._build_graph(model)
 #print(model)
-net = transofrmer.summary(model)
+#net = transofrmer.summary(model)
 #print(net)

@@ -3,6 +3,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import inspect 
 
 from collections import OrderedDict
 
@@ -153,8 +154,8 @@ class Log(object):
 		return self
 
 
-	def reshape(self, *size):
-		self.cur_tensor = self.cur_tensor.reshape(size).clone()
+	def reshape(self, *size, **kwargs):
+		self.cur_tensor = self.cur_tensor.reshape(size, kwargs)
 		#print("rehsape", type(self.cur_tensor.reshape(size)))
 		return self
 
@@ -209,12 +210,6 @@ class TorchTransformer(nn.Module):
 		self._register_dict = OrderedDict()
 		
 		self.log = Log()
-		print("CREATE Log")
-		print(hasattr(self.log, '__deepcopy__'))
-		print(hasattr(self.log.cur_tensor, '__deepcopy__'))
-		print(getattr(self.log, 'getTensor'))
-		print(dir(self.log))
-		#print(getattr(self.log, '__deepcopy__'))
 		
 		self._raw_cat = None		
 		self._raw_max = None
@@ -259,7 +254,7 @@ class TorchTransformer(nn.Module):
 			
 	
 	def summary(self, model = None, input_tensor = None):
-		input_tensor = torch.randn([1, 3, 224, 224])		
+		input_tensor = torch.randn([1, 3, 224, 224])
 		model_graph = self.log.getGraph()
 		# if graph empty
 		if not model_graph:
@@ -392,7 +387,7 @@ class TorchTransformer(nn.Module):
 	
 
 	def trans_layers(self, model):
-		print("trans layer")
+		# print("trans layer")
 		if len(self._register_dict) == 0:
 			print("No layer to swap")
 			print("Please use register( {origin_layer}, {target_layer} ) to register layer")
@@ -402,12 +397,32 @@ class TorchTransformer(nn.Module):
 				# has children
 				if len(model._modules[module_name]._modules) > 0:
 					self.trans_layers(model._modules[module_name])
-				else:				
-					if (getattr(model, module_name)) in self._register_dict.keys():
-						# need to add swap process
-						# should think if there is any input arg
-						pass	
-				
+				else:
+					if type(getattr(model, module_name)) in self._register_dict:
+						# use inspect.signature to know args and kwargs of __init__
+						_sig = inspect.signature(type(getattr(model, module_name)))
+						_kwargs = {}
+						for key in _sig.parameters:
+							if _sig.parameters[key].default == inspect.Parameter.empty: #args
+								# assign args
+								# default values should be handled more properly, unknown data type might be an issue
+								if 'kernel' in key:
+									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=3)
+									value = 3
+								elif 'channel' in key:
+									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=32)
+									value = 32
+								else:
+									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=None)
+									value = None
+						
+								_kwargs[key] = value
+
+						_attr_dict = getattr(model, module_name).__dict__
+						_layer_new = self._register_dict[type(getattr(model, module_name))](**_kwargs) # only give positional args
+						_layer_new.__dict__.update(_attr_dict)
+
+						setattr(model, module_name, _layer_new)
 	
 	
 	# torch.cat()
