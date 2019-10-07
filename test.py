@@ -23,5 +23,6 @@ transofrmer = TorchTransformer()
 
 #net = transofrmer._build_graph(model)
 #print(model)
-net = transofrmer.summary(model)
+#net = transofrmer.summary(model)
+transofrmer.visualize(model)
 #print(net)

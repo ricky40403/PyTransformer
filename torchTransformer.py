@@ -5,6 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import inspect 
 
+from graphviz import Digraph
+import pydot
+
 from collections import OrderedDict
 
 
@@ -400,6 +403,80 @@ class TorchTransformer(nn.Module):
 		print("Total Non-Trainable params: {} ".format(total_params - totoal_trainable_params))
 		print("Total params: {} ".format(total_params))
 
+	def visualize(self, model = None, input_tensor = None):
+		input_tensor = torch.randn([1, 3, 224, 224])
+		model_graph = self.log.getGraph()
+		# if graph empty
+		if not model_graph:
+			if model is None:
+				raise ValueError("Please input model to visualize")
+			else:
+				self._build_graph(model, input_tensor)
+		
+		# graph 
+		node_attr = dict(style='filled',
+						 shape='box',
+						 align='left',
+						 fontsize='12',
+						 ranksep='0.1',
+						 height='0.2')
+		
+		#dot = Digraph(node_attr=node_attr, graph_attr=dict(size="12,12"))
+		graph = pydot.Dot(graph_type='digraph')
+
+		
+		# get dicts and variables
+		model_graph = self.log.getGraph()
+		bottoms_graph = self.log.getBottoms()
+		
+		for layer_index, key in enumerate(model_graph):
+			# bottom is data
+			if bottoms_graph[key][0] == None:
+				# Data
+				layer_type = "Data"
+				# dot.node(layer_type, layer_type, fillcolor='orange')
+				graph.add_node(pydot.Node(layer_type, label = layer_type, fillcolor='orange'))
+				
+				# first layer after data
+				layer = model_graph[key]
+				layer_type = layer.__class__.__name__				
+				# add, sub, mul...,etc. (custom string)
+				if layer_type == "str":
+					layer_type = key
+				else:
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
+					
+				# dot.node(str(key), layer_type, fillcolor='orange')
+				# dot.edge("Data", str(key))
+				graph.add_node(pydot.Node(str(key), label = layer_type, fillcolor='orange'))
+				graph.add_edge(pydot.Edge("Data", str(key)))
+				
+			else:
+				# Layer Information
+				layer = model_graph[key]
+				layer_type = layer.__class__.__name__
+				
+				# add, sub, mul...,etc. (custom string)
+				if layer_type == "str":
+					layer_type = key
+				else:
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
+				
+				
+				# dot.node(str(key), layer_type, fillcolor='orange')
+				graph.add_node(pydot.Node(str(key), label = layer_type, fillcolor='orange'))
+				# link bottoms
+				for bot_key in bottoms_graph[key]:
+					# dot.edge(str(bot_key), str(key))
+					graph.add_edge(pydot.Edge(str(bot_key), str(key)))
+		
+		graph.write_png('example1_graph.png')
+
+		return graph
+		#(graph,) = pydot.graph_from_dot_file('somefile.dot')
+		#graph.write_png('somefile.png')
+		#return dot
+		
 	def _trans_unit(self, model):
 		# print("TRNS_UNIT")
 		for module_name in model._modules:			
