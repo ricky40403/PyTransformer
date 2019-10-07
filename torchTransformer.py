@@ -452,6 +452,7 @@ class TorchTransformer(nn.Module):
 						setattr(model, module_name, _layer_new)
 	
 	
+	
 	# torch.cat()
 	def _trans_cat(self, raw_func, log, dim=0, out=None):
 		# input should be log		
