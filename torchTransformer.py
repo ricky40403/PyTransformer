@@ -57,6 +57,32 @@ class Log(object):
 		else:
 			self.output_shape[self.cur_id] = None
 	
+	
+	# handle tensor operation(eg: tensor.view)
+	def __getattr__(self, name):		
+		
+		if name == "__deepcopy__" or name == "__setstate__":
+			return object.__getattribute__(self, name)			
+		if hasattr(self.cur_tensor, name):			
+			def wrapper(args):
+				# should only operate on tensor, no need to handle log
+				layer_name = "torch_{}_{}".format(name, len(self.graph) + 1)
+				self.graph[layer_name] = layer_name
+				self.bottoms[layer_name] = [self.cur_id]
+				self.cur_id = layer_name				
+				func = self.cur_tensor.__getattribute__(name)
+				out_tensor = func(args)
+				if out_tensor is not None:
+					self.output_shape[self.cur_id] = out_tensor.size()
+				else:
+					self.output_shape[self.cur_id] = None				
+				return self
+			
+			return wrapper
+		else:
+			return object.__getattribute__(self, name)			
+		
+	
 	def __add__(self, other):
 		#print("add")
 		# merge other branch		
@@ -153,12 +179,12 @@ class Log(object):
 		del other
 		return self
 
-
+	'''
 	def reshape(self, *size, **kwargs):
 		self.cur_tensor = self.cur_tensor.reshape(size, kwargs)
 		#print("rehsape", type(self.cur_tensor.reshape(size)))
 		return self
-
+	'''
 
 	def size(self, dim=None):
 		return self.cur_tensor.size(dim) if dim is not None else self.cur_tensor.size()
@@ -225,6 +251,7 @@ class TorchTransformer(nn.Module):
 	
 	def _build_graph(self, model, input_tensor = None):
 		self.log.setTensor(input_tensor)
+		
 		# if graph is empty, buld
 		if not self._module_graph:
 			# print("set unit")
@@ -245,7 +272,7 @@ class TorchTransformer(nn.Module):
 			
 			
 			self.log = tmp_model.forward(self.log)
-			
+			self.log.view(-1)
 			# set back 
 			torch.cat = self._raw_cat
 			torch.max = self._raw_max
@@ -333,7 +360,7 @@ class TorchTransformer(nn.Module):
 					if bottom == "str":
 						bottom = b_key
 					else:
-						bottom = bottom + "_{}".format(layer_index + 1)					
+						bottom = bottom + "_{}".format(layer_index)					
 					bottoms.append(bottom)
 				
 				# Layer Output Shape
