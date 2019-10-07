@@ -12,8 +12,7 @@ import math
 
 class UniformQuantize(InplaceFunction):
     @staticmethod
-    def forward(cls, ctx, input, num_bits=8, min_value=None, max_value=None, inplace=False, symmetric=False, num_chunks=None):
-
+    def forward(ctx, input, num_bits=8, min_value=None, max_value=None, inplace=False, symmetric=False, num_chunks=None):
         num_chunks = num_chunks = input.shape[0] if num_chunks is None else num_chunks
         if min_value is None or max_value is None:
             B = input.shape[0]
