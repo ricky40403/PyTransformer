@@ -453,16 +453,16 @@ class TorchTransformer(nn.Module):
 	
 	
 	# torch.cat()
-	def _trans_cat(self, input, dim=0, out=None):
+	def _trans_cat(self, raw_func, log, dim=0, out=None):
 		# input should be log		
 		# copy log to prevent overwrite
 		log = copy.deepcopy(log)	
 		
 		# Layer information		
-		layer_name = "torchCat_{}".format(len(input.graph))
-		input.graph[layer_name] = layer_name
-		input.bottoms[layer_name] = [input.cur_id]
-		input.cur_id = layer_name		
+		layer_name = "torchCat_{}".format(len(log.graph))
+		log.graph[layer_name] = layer_name
+		log.bottoms[layer_name] = [log.cur_id]
+		log.cur_id = layer_name		
 		
 		# fot output shape
 		# handle tensor operation
@@ -495,16 +495,16 @@ class TorchTransformer(nn.Module):
 		return log
 					
 	# torch.max()
-	def _trans_max(self, input):	
+	def _trans_max(self, raw_func, log):	
 		# input should be log		
 		# copy log to prevent overwrite
 		log = copy.deepcopy(log)	
 		
 		# Layer information		
-		layer_name = "torchMax_{}".format(len(input.graph))
-		input.graph[layer_name] = layer_name
-		input.bottoms[layer_name] = [input.cur_id]
-		input.cur_id = layer_name		
+		layer_name = "torchMax_{}".format(len(log.graph))
+		log.graph[layer_name] = layer_name
+		log.bottoms[layer_name] = [log.cur_id]
+		log.cur_id = layer_name		
 		
 		# fot output shape
 		# handle tensor operation
@@ -516,16 +516,16 @@ class TorchTransformer(nn.Module):
 		return log
 	
 	# torch.split()
-	def _trans_split(self, input, split_size_or_sections, dim=0):	
+	def _trans_split(self, raw_func, log, split_size_or_sections, dim=0):	
 		# input should be log		
 		# copy log to prevent overwrite
 		log = copy.deepcopy(log)	
 		
 		# Layer information		
-		layer_name = "torchSplit_{}".format(len(input.graph))
-		input.graph[layer_name] = layer_name
-		input.bottoms[layer_name] = [input.cur_id]
-		input.cur_id = layer_name		
+		layer_name = "torchSplit_{}".format(len(log.graph))
+		log.graph[layer_name] = layer_name
+		log.bottoms[layer_name] = [log.cur_id]
+		log.cur_id = layer_name		
 		
 		# fot output shape
 		# handle tensor operation
