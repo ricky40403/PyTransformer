@@ -31,8 +31,17 @@ class Log(object):
 		self.output_shape = OrderedDict()
 		self.cur_tensor = None
 		self.cur_id = None
+		self.log_init()
 
-	
+	# add data input layer to log
+	def log_init(self):
+		layer_id = "Data"
+		self.graph[layer_id] = layer_id
+		self.bottoms[layer_id] = None
+		self.output_shape[layer_id] = ""
+		self.cur_id = layer_id
+
+  
 	# for general layer (should has only one input?)
 	def putLayer(self, layer):		
 		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)
@@ -67,18 +76,19 @@ class Log(object):
 		if name == "__deepcopy__" or name == "__setstate__":
 			return object.__getattribute__(self, name)			
 		if hasattr(self.cur_tensor, name):			
-			def wrapper(args):
+			def wrapper(*args, **kwargs):
 				# should only operate on tensor, no need to handle log
 				layer_name = "torch_{}_{}".format(name, len(self.graph) + 1)
 				self.graph[layer_name] = layer_name
 				self.bottoms[layer_name] = [self.cur_id]
-				self.cur_id = layer_name				
+				self.cur_id = layer_name
 				func = self.cur_tensor.__getattribute__(name)
-				out_tensor = func(args)
+				out_tensor = func(args, kwargs)
 				if out_tensor is not None:
+					self.cur_tensor = out_tensor
 					self.output_shape[self.cur_id] = out_tensor.size()
-				else:
-					self.output_shape[self.cur_id] = None				
+				else:					
+					self.output_shape[self.cur_id] = None
 				return self
 			
 			return wrapper
@@ -182,25 +192,10 @@ class Log(object):
 		del other
 		return self
 
-	'''
-	def reshape(self, *size, **kwargs):
-		self.cur_tensor = self.cur_tensor.reshape(size, kwargs)
-		#print("rehsape", type(self.cur_tensor.reshape(size)))
-		return self
-	'''
 
 	def size(self, dim=None):
 		return self.cur_tensor.size(dim) if dim is not None else self.cur_tensor.size()
 
-
-	# def __getattr__(self, name, *args, **kwargs):
-	# 	print(name, args, kwargs, type(name), type(args), type(kwargs))
-	# 	if '__' not in name: # a work around, aims to catch all method calls to torch.tensor
-	# 		print(self.cur_tensor.shape)
-	# 		getattr(self.cur_tensor, name)(args, kwargs)
-	# 		return self
-
-	# 	return self.__getattribute__(name)
 
 
 class UnitLayer(nn.Module):
@@ -235,7 +230,7 @@ class TorchTransformer(nn.Module):
 	def __init__(self):
 		super(TorchTransformer, self).__init__()
 
-		self._module_graph = OrderedDict()
+		# self._module_graph = OrderedDict()
 		self._register_dict = OrderedDict()
 		
 		self.log = Log()
@@ -253,51 +248,52 @@ class TorchTransformer(nn.Module):
 		pass
 	
 	def _build_graph(self, model, input_tensor = None):
+		# reset log
+		self.log = Log()
+		# add Data input
 		self.log.setTensor(input_tensor)
+
+		tmp_model = self._trans_unit(copy.deepcopy(model))		
 		
-		# if graph is empty, buld
-		if not self._module_graph:
-			# print("set unit")
-			# increase memory??
-			tmp_model = self._trans_unit(copy.deepcopy(model))
-			# tmp_model = self._trans_unit (model)			
-			
-			# print("Log")			
-			# set trans function
-			self._raw_cat = torch.cat
-			torch.cat = _ReplaceFunc(self._raw_cat, self._trans_cat)			
-			self._raw_max = torch.max
-			torch.max = _ReplaceFunc(self._raw_max, self._trans_max)
-			self._raw_flatten = torch.flatten
-			torch.flatten = _ReplaceFunc(self._raw_flatten, self._trans_flatten)
-			self._raw_split = torch.split
-			torch.split = _ReplaceFunc(self._raw_split, self._trans_split)
-			
-			
-			self.log = tmp_model.forward(self.log)
-			self.log.view(-1)
-			
-			# set back 
-			torch.cat = self._raw_cat
-			torch.max = self._raw_max
-			torch.flatten = self._raw_flatten
-			torch.split = self._raw_split
+		# set trans function
+		self._raw_cat = torch.cat
+		torch.cat = _ReplaceFunc(self._raw_cat, self._trans_cat)			
+		self._raw_max = torch.max
+		torch.max = _ReplaceFunc(self._raw_max, self._trans_max)
+		self._raw_flatten = torch.flatten
+		torch.flatten = _ReplaceFunc(self._raw_flatten, self._trans_flatten)
+		self._raw_split = torch.split
+		torch.split = _ReplaceFunc(self._raw_split, self._trans_split)		
+		
+		# forward to generate log
+		self.log = tmp_model.forward(self.log)		
+		
+		# reset back 
+		torch.cat = self._raw_cat
+		torch.max = self._raw_max
+		torch.flatten = self._raw_flatten
+		torch.split = self._raw_split
 			
 	
 	def summary(self, model = None, input_tensor = None):
 		input_tensor = torch.randn([1, 3, 224, 224])
 		model_graph = self.log.getGraph()
-		# if graph empty
-		if not model_graph:
-			if model is None:
-				raise ValueError("Please input model to summary")
+		# if graph empty		
+		if model is None:
+			# check if use self modules
+			if len(self._modules) > 0:
+				self._build_graph(self, input_tensor)	
 			else:
-				self._build_graph(model, input_tensor)
-		
+				raise ValueError("Please input model to summary")
+		else:
+			self._build_graph(model, input_tensor)
+   
 		# get dicts and variables
 		model_graph = self.log.getGraph()
 		bottoms_graph = self.log.getBottoms()
 		output_shape_graph = self.log.getOutShapes()
+		# store top names for bottoms
+		topNames = OrderedDict()
 		totoal_trainable_params = 0
 		total_params = 0
 		# loop graph
@@ -309,24 +305,18 @@ class TorchTransformer(nn.Module):
 		
 		for layer_index, key in enumerate(model_graph):	
 			
-			# bottom is data
-			if bottoms_graph[key][0] == None:				
-				# data input
-				layer_type = "Data"								
-				data_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, "", "", "0")
-				print(data_layer)
-				print("---------------------------------------------------------------------------")
-				
-				# first layer
+			# data layer
+			if bottoms_graph[key] is None:
 				# Layer information
 				layer = model_graph[key]
 				layer_type = layer.__class__.__name__
 				if layer_type == "str":
 					layer_type = key
 				else:
-					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-				# Layer Bottoms is Data
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 				
+				topNames[key] = layer_type
+
 				# Layer Output shape
 				output_shape = "[{}]".format(tuple(output_shape_graph[key]))
 				
@@ -343,7 +333,7 @@ class TorchTransformer(nn.Module):
 				
 				total_params += param_weight_num
 				
-				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "Data", output_shape, param_weight_num)
+				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "", output_shape, param_weight_num)
 				print(new_layer)
 				
 			else:
@@ -355,16 +345,18 @@ class TorchTransformer(nn.Module):
 				if layer_type == "str":
 					layer_type = key
 				else:
-					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-				
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
+
+				topNames[key] = layer_type
 				# Layer Bottoms
 				bottoms = []
 				for b_key in bottoms_graph[key]:
-					bottom = model_graph[b_key].__class__.__name__
-					if bottom == "str":
-						bottom = b_key
-					else:
-						bottom = bottom + "_{}".format(layer_index)					
+					bottom = topNames[b_key]
+					# bottom = model_graph[b_key].__class__.__name__
+					# if bottom == "str":
+					# 	bottom = b_key
+					# else:
+					# 	bottom = bottom + "_{}".format(layer_index)					
 					bottoms.append(bottom)
 				
 				# Layer Output Shape
@@ -403,85 +395,71 @@ class TorchTransformer(nn.Module):
 		print("Total Non-Trainable params: {} ".format(total_params - totoal_trainable_params))
 		print("Total params: {} ".format(total_params))
 
-	def visualize(self, model = None, input_tensor = None):
+	def visualize(self, model = None, input_tensor = None, save_name = None, graph_size = 30):
 		input_tensor = torch.randn([1, 3, 224, 224])
 		model_graph = self.log.getGraph()
-		# if graph empty
-		if not model_graph:
-			if model is None:
-				raise ValueError("Please input model to visualize")
+		
+		# if graph empty		
+		if model is None:
+			# check if use self modules
+			if len(self._modules) > 0:
+				self._build_graph(self, input_tensor)	
 			else:
-				self._build_graph(model, input_tensor)
+				raise ValueError("Please input model to visualize")
+		else:
+			self._build_graph(model, input_tensor)
 		
 		# graph 
 		node_attr = dict(style='filled',
 						 shape='box',
 						 align='left',
-						 fontsize='12',
+						 fontsize='30',
 						 ranksep='0.1',
 						 height='0.2')
 		
-		#dot = Digraph(node_attr=node_attr, graph_attr=dict(size="12,12"))
-		graph = pydot.Dot(graph_type='digraph')
+		dot = Digraph(node_attr=node_attr, graph_attr=dict(size="{},{}".format(graph_size, graph_size)))	
 
-		
 		# get dicts and variables
 		model_graph = self.log.getGraph()
 		bottoms_graph = self.log.getBottoms()
-		
+
 		for layer_index, key in enumerate(model_graph):
-			# bottom is data
-			if bottoms_graph[key][0] == None:
-				# Data
-				layer_type = "Data"
-				# dot.node(layer_type, layer_type, fillcolor='orange')
-				graph.add_node(pydot.Node(layer_type, label = layer_type, fillcolor='orange'))
-				
-				# first layer after data
+			# Input Data layer
+			if bottoms_graph[key] is None:
 				layer = model_graph[key]
 				layer_type = layer.__class__.__name__				
 				# add, sub, mul...,etc. (custom string)
 				if layer_type == "str":
 					layer_type = key
 				else:
-					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 					
-				# dot.node(str(key), layer_type, fillcolor='orange')
-				# dot.edge("Data", str(key))
-				graph.add_node(pydot.Node(str(key), label = layer_type, fillcolor='orange'))
-				graph.add_edge(pydot.Edge("Data", str(key)))
-				
+				dot.node(str(key), layer_type, fillcolor='orange')			
 			else:
 				# Layer Information
 				layer = model_graph[key]
-				layer_type = layer.__class__.__name__
-				
+				layer_type = layer.__class__.__name__				
 				# add, sub, mul...,etc. (custom string)
 				if layer_type == "str":
 					layer_type = key
 				else:
-					layer_type = layer.__class__.__name__ + "_{}".format(layer_index + 1)
-				
-				
-				# dot.node(str(key), layer_type, fillcolor='orange')
-				graph.add_node(pydot.Node(str(key), label = layer_type, fillcolor='orange'))
+					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
+								
+				dot.node(str(key), layer_type, fillcolor='orange')				
 				# link bottoms
 				for bot_key in bottoms_graph[key]:
-					# dot.edge(str(bot_key), str(key))
-					graph.add_edge(pydot.Edge(str(bot_key), str(key)))
-		
-		graph.write_png('example1_graph.png')
+					dot.edge(str(bot_key), str(key))				
 
-		return graph
-		#(graph,) = pydot.graph_from_dot_file('somefile.dot')
-		#graph.write_png('somefile.png')
-		#return dot
+		# return graph
+		if save_name is not None:
+			(graph,) = pydot.graph_from_dot_data(dot.source)
+			graph.write_png(save_name + ".png" )
+		return dot
 		
 	def _trans_unit(self, model):
 		# print("TRNS_UNIT")
 		for module_name in model._modules:			
 			# has children
-			# print('module_name', module_name, type(model._modules[module_name]))
 			if len(model._modules[module_name]._modules) > 0:
 				self._trans_unit(model._modules[module_name])
 			else:				
