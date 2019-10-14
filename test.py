@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.models as models
-
-from torchTransformer import TorchTransformer
-from quantize import QConv2d
+import copy
+from transformers.torchTransformer import TorchTransformer
+# from quantize import QConv2d
 model = models.__dict__["resnet18"]()
 #print(len(model._modules))
 #sys.exit()
@@ -23,6 +23,8 @@ transofrmer = TorchTransformer()
 
 #net = transofrmer._build_graph(model)
 #print(model)
-net = transofrmer.summary(model)
-# transofrmer.visualize(model, save_name= "example")
+# net = transofrmer.summary(model)
+# net = transofrmer.summary(model)
+transofrmer.visualize(model, save_name= "example")
+transofrmer.visualize(model, save_name= "example2")
 #print(net)
