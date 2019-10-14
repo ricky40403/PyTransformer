@@ -100,7 +100,7 @@ class Log(object):
 			return self.cur_tensor.data		
 
 		# contiguous has not args
-		elif name == "contiguous":		
+		elif name == "contiguous":
 			def wrapper(*args, **kwargs):
 				func = self.cur_tensor.__getattribute__(name)
 				out_tensor = func()
@@ -115,7 +115,7 @@ class Log(object):
 
 		# contiguous can not use args kwargs
 		elif name == "chunk":		
-			print(name)
+			# print(name)
 			def wrapper(*args, **kwargs):				
 				layer_name = "torch_{}_{}".format(name, len(self.graph))				
 				self.graph[layer_name] = layer_name
@@ -128,7 +128,9 @@ class Log(object):
 				out_logs = []
 				for t in out_tensor:
 					out_shape.append(t.size())
-					out_logs.append(copy.deepcopy(self))
+					out_log = copy.deepcopy(self)
+					out_log.cur_tensor = t
+					out_logs.append(out_log)
 
 				# # self.output_shape[self.cur_id] = out_tensor.size()
 				# if out_tensor is not None:
@@ -140,7 +142,7 @@ class Log(object):
 			return wrapper
 		
 		elif hasattr(self.cur_tensor, name):			
-			def wrapper(*args, **kwargs):			
+			def wrapper(*args, **kwargs):
 				# should only operate on tensor, no need to handle log
 				layer_name = "torch_{}_{}".format(name, len(self.graph))				
 				self.graph[layer_name] = layer_name
