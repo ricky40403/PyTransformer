@@ -31,7 +31,7 @@ class Log(object):
 		self.output_shape = OrderedDict()
 		self.cur_tensor = None
 		self.cur_id = None
-		self.tmp_list = []
+		self.tmp_list = None
 		self.log_init()
 
 	def reset(self):
@@ -51,23 +51,21 @@ class Log(object):
 		self.bottoms[layer_id] = None
 		self.output_shape[layer_id] = ""
 		self.cur_id = layer_id
+		self.tmp_list = []
 
   
 	# for general layer (should has only one input?)
 	def putLayer(self, layer):		
-		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)		
-		tmp_layer = copy.deepcopy(layer) 
-		layer_id = id(tmp_layer)
-		self.tmp_list.append(tmp_layer)
-  
-		# prevent sometimes that tmp layer still has same address
-		# store into list and copy again should get other address
+		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)
+		# tmp_layer = copy.deepcopy(layer)
+		layer_id = id(layer)
+		self.tmp_list.append(layer)
+		layer_id = id(self.tmp_list[-1])
 		if layer_id in self.graph:
-			self.tmp_list.append(tmp_layer)		
-			tmp_layer = copy.deepcopy(layer) 
-			layer_id = id(tmp_layer)
-		
-		
+			tmp_layer = copy.deepcopy(layer)
+			self.tmp_list.append(tmp_layer)
+			layer_id = id(self.tmp_list[-1])
+
 		self.graph[layer_id] = layer
 		self.bottoms[layer_id] = [self.cur_id]
 		self.cur_id = layer_id
@@ -84,7 +82,7 @@ class Log(object):
 	def getTensor(self):
 		return self.cur_tensor
 	
-	def setTensor(self, tensor):
+	def setTensor(self, tensor):		
 		self.cur_tensor = tensor
 		if tensor is not None:
 			self.output_shape[self.cur_id] = self.cur_tensor.size()
@@ -93,20 +91,62 @@ class Log(object):
 	
 	
 	# handle tensor operation(eg: tensor.view)
-	def __getattr__(self, name):		
-		
+	def __getattr__(self, name):	
+		# print(name)
 		if name == "__deepcopy__" or name == "__setstate__":
 			return object.__getattribute__(self, name)			
-		if hasattr(self.cur_tensor, name):			
+		# if get data => get cur_tensor.data
+		elif name == "data":
+			return self.cur_tensor.data		
+
+		# contiguous has not args
+		elif name == "contiguous":		
 			def wrapper(*args, **kwargs):
-				print("123123123213")
-				print(name)
-				# should only operate on tensor, no need to handle log
-				layer_name = "torch_{}_{}".format(name, len(self.graph) + 1)
+				func = self.cur_tensor.__getattribute__(name)
+				out_tensor = func()
+				self.output_shape[self.cur_id] = out_tensor.size()
+				if out_tensor is not None:
+					self.cur_tensor = out_tensor
+					self.output_shape[self.cur_id] = out_tensor.size()
+				else:
+					self.output_shape[self.cur_id] = None
+				return self
+			return wrapper
+
+		# contiguous can not use args kwargs
+		elif name == "chunk":		
+			print(name)
+			def wrapper(*args, **kwargs):				
+				layer_name = "torch_{}_{}".format(name, len(self.graph))				
 				self.graph[layer_name] = layer_name
 				self.bottoms[layer_name] = [self.cur_id]
 				self.cur_id = layer_name
-				func = self.cur_tensor.__getattribute__(name)
+				func = self.cur_tensor.__getattribute__(name)	
+				out_tensor = func(args[0], dim = kwargs['dim'])
+				# has multiple output
+				out_shape = []
+				out_logs = []
+				for t in out_tensor:
+					out_shape.append(t.size())
+					out_logs.append(copy.deepcopy(self))
+
+				# # self.output_shape[self.cur_id] = out_tensor.size()
+				# if out_tensor is not None:
+				# 	self.cur_tensor = out_tensor
+				# 	self.output_shape[self.cur_id] = out_tensor.size()
+				# else:
+				# 	self.output_shape[self.cur_id] = None
+				return out_logs
+			return wrapper
+		
+		elif hasattr(self.cur_tensor, name):			
+			def wrapper(*args, **kwargs):			
+				# should only operate on tensor, no need to handle log
+				layer_name = "torch_{}_{}".format(name, len(self.graph))				
+				self.graph[layer_name] = layer_name
+				self.bottoms[layer_name] = [self.cur_id]
+				self.cur_id = layer_name
+				func = self.cur_tensor.__getattribute__(name)				
 				out_tensor = func(args, kwargs)
 				if out_tensor is not None:
 					self.cur_tensor = out_tensor
@@ -234,19 +274,26 @@ class UnitLayer(nn.Module):
 
 	# general layer should has only one input?
 	def forward(self, log, *args):
+		# print("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII")
 		# prevent overwrite log for other forward flow
 		cur_log = copy.deepcopy(log)
 		cur_log.putLayer(self.origin_layer)
+		# print(log.cur_tensor)
 		log_tensor = log.getTensor()
 		
-		#print("------------------------------------------------")
+		# print("------------------------------------------------")
+		# print("Helloooooooooooooooooooooooooooooooooooooooooo")
+		print(self.origin_layer)
+		# print(cur_log.getG())
+		# print(log_tensor.size())
+		# print(type(log_tensor))
+		# print("------------------------------------------------")
 		# print(self.origin_layer)
 		# set as leaf for copy
 		out_tensor = self.origin_layer(log_tensor).clone().detach()		
 		cur_log.setTensor(out_tensor)
 		
-		#cur_log.putLayer(self.origin_layer)
-		
+		#cur_log.putLayer(self.origin_layer)		
 		return cur_log
 
 
@@ -256,13 +303,14 @@ class TorchTransformer(nn.Module):
 
 		# self._module_graph = OrderedDict()
 		self._register_dict = OrderedDict()
-		
+
 		self.log = Log()
-		
+
 		self._raw_cat = None		
 		self._raw_max = None
 		self._raw_flatten = None
 		self._raw_split = None
+		self._raw_transpose = None
 
 
 	# register class to trans
@@ -275,7 +323,7 @@ class TorchTransformer(nn.Module):
 		# reset log
 		self.log = Log()		
 		# add Data input
-		self.log.setTensor(input_tensor)
+		self.log.setTensor(input_tensor)		
 
 		tmp_model = self._trans_unit(copy.deepcopy(model))		
 		
@@ -287,10 +335,14 @@ class TorchTransformer(nn.Module):
 		self._raw_flatten = torch.flatten
 		torch.flatten = _ReplaceFunc(self._raw_flatten, self._trans_flatten)
 		self._raw_split = torch.split
-		torch.split = _ReplaceFunc(self._raw_split, self._trans_split)		
+		torch.split = _ReplaceFunc(self._raw_split, self._trans_split)
+		self._raw_transpose = torch.transpose
+		torch.transpose = _ReplaceFunc(self._raw_transpose, self._trans_transpose)
 		
+		# print(tmp_model)
+		# sys.exit()
 		# forward to generate log
-		self.log = tmp_model.forward(self.log)		
+		self.log = tmp_model.forward(self.log)
 		
 		# reset back 
 		torch.cat = self._raw_cat
@@ -535,33 +587,66 @@ class TorchTransformer(nn.Module):
 						setattr(model, module_name, _layer_new)
 	
 	
-	
+	# self.graph.update(other.graph)
+	# 	self.bottoms.update(other.bottoms)
+	# 	self.output_shape.update(other.output_shape)
+	# 	layer_name = "iadd_{}".format(len(self.graph))
+	# 	self.graph[layer_name] = layer_name
+	# 	self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+	# 	self.output_shape[layer_name] = self.cur_tensor.size()
+	# 	self.cur_id = layer_name
 	# torch.cat()
-	def _trans_cat(self, raw_func, log, dim=0, out=None):
+	def _trans_cat(self, raw_func, logs, dim=0, out=None):
 		# input should be log		
 		# copy log to prevent overwrite
-		log = copy.deepcopy(log)
-		
+		cur_log = copy.deepcopy(logs[0])
+		cur_bottom = [cur_log.cur_id]
+		tensors = [cur_log.getTensor()]
+		if len(logs) > 1:			
+			# cur_graph = cur_log.getGraph()
+			for log in logs[1:]:
+				# tmp_graph = log.getGraph()
+				cur_log.graph.update(log.graph)
+				cur_log.bottoms.update(log.bottoms)
+				cur_log.output_shape.update(log.output_shape)
+				cur_bottom.append(log.cur_id)
+				tensors.append(log.cur_tensor)
+	
 		# Layer information		
-		layer_name = "torchCat_{}".format(len(log.graph))
-		log.graph[layer_name] = layer_name
-		log.bottoms[layer_name] = [log.cur_id]
-		log.cur_id = layer_name		
+		layer_name = "torchCat_{}".format(len(cur_log.graph))
+		cur_log.graph[layer_name] = layer_name
+		cur_log.bottoms[layer_name] = cur_bottom
+		cur_log.cur_id = layer_name		
 		
 		# fot output shape
 		# handle tensor operation
+		# log_tensor = cur_log.getTensor()		
+		
+		# set as leaf for copy					
+		out_tensor = raw_func(tuple(tensors), dim=dim, out=out).clone().detach()		
+		cur_log.setTensor(out_tensor)
+		
+		return cur_log
+	
+	def _trans_transpose(self, raw_func, log, dim0, dim1):
+		log = copy.deepcopy(log)
+		layer_name = "torchTranspose_{}".format(len(log.getGraph()))
+		log.graph[layer_name] = layer_name
+		log.bottoms[layer_name] = [log.cur_id]
+		log.cur_id = layer_name
 		log_tensor = log.getTensor()		
 		# set as leaf for copy					
-		out_tensor = raw_func(log_tensor, dim=dim, out=out).clone().detach()		
+		out_tensor = raw_func(log_tensor, dim0, dim1).clone().detach()		
 		log.setTensor(out_tensor)
 		
 		return log
-	
+  
+  
 	# torch.flatten()
 	def _trans_flatten(self, raw_func, log, start_dim = 0, end_dim = -1):		
 		# input should be log		
 		# copy log to prevent overwrite
-		log = copy.deepcopy(log)	
+		log = copy.deepcopy(log)
 		
 		# Layer information		
 		layer_name = "torchFlatten_{}".format(len(log.getGraph()))
@@ -585,7 +670,7 @@ class TorchTransformer(nn.Module):
 		log = copy.deepcopy(log)	
 		
 		# Layer information		
-		layer_name = "torchMax_{}".format(len(log.graph))
+		layer_name = "torchMax_{}".format(len(log.getGraph))
 		log.graph[layer_name] = layer_name
 		log.bottoms[layer_name] = [log.cur_id]
 		log.cur_id = layer_name		
@@ -606,7 +691,7 @@ class TorchTransformer(nn.Module):
 		log = copy.deepcopy(log)	
 		
 		# Layer information		
-		layer_name = "torchSplit_{}".format(len(log.graph))
+		layer_name = "torchSplit_{}".format(len(log.getGraph))
 		log.graph[layer_name] = layer_name
 		log.bottoms[layer_name] = [log.cur_id]
 		log.cur_id = layer_name		
