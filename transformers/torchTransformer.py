@@ -830,6 +830,10 @@ class TorchTransformer(nn.Module):
 		# get output through raw function
 		#// to be fix
 		if len(cur_args) > 0:
+			# sometimes happened cur_args = (x,) and funciton can not accept			
+			if len(cur_args) == 1:
+				cur_args = cur_args[0]
+				print(cur_args)
 			if len(kwargs) > 0:
 				out_tensor = raw_func(cur_inputs, cur_args, kwargs).clone().detach()
 			else:
