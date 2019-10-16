@@ -5,7 +5,7 @@ import torchvision.models as models
 import copy
 from transformers.torchTransformer import TorchTransformer
 # from quantize import QConv2d
-model = models.__dict__["inception_v3"]()
+model = models.__dict__["densenet161"]()
 model.eval()
 # print(model)
 # input_tensor = torch.randn([1, 3, 224, 224])
@@ -30,7 +30,7 @@ transofrmer = TorchTransformer()
 #net = transofrmer._build_graph(model)
 #print(model)
 # net = transofrmer.summary(model)
-net = transofrmer.summary(model)
+# net = transofrmer.summary(model)
 transofrmer.visualize(model, save_name= "example", graph_size = 50)
 # print("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ")
 # transofrmer.visualize(model, save_name= "example2")

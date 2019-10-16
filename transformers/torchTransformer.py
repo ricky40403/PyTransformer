@@ -355,10 +355,15 @@ class TorchTransformer(nn.Module):
 		# 		print(f)
 		# sys.exit()
 		for f in dir(torch):
+			# if f == "addmm":
+			# 	print(type(f))
+			# 	print(isinstance(getattr(torch, f) ,types.BuiltinMethodType))
+			# 	print(isinstance(getattr(torch, f) ,types.BuiltinFunctionType))
+			# 	sys.exit()
 			# if private function, pass
 			if f.startswith("_"):
 				continue
-			if isinstance(getattr(torch, f) ,types.BuiltinMethodType) or isinstance(getattr(torch, f) ,types.BuiltinFunctionType):			
+			if isinstance(getattr(torch, f) ,types.BuiltinMethodType) or isinstance(getattr(torch, f) ,types.BuiltinFunctionType):
 				self._raw_TrochFuncs[f] = getattr(torch, f)
 				setattr(torch, f, _ReplaceFunc(getattr(torch,f), self._torchFunctions))
     
@@ -539,7 +544,7 @@ class TorchTransformer(nn.Module):
 		print("Total params: {} ".format(total_params))
   
 		# del model_graph, bottoms_graph, output_shape_graph, topNames
-		return model
+		# return model
 
 	def visualize(self, model = None, input_tensor = None, save_name = None, graph_size = 30):
 		input_tensor = torch.randn([1, 3, 224, 224])
@@ -778,6 +783,9 @@ class TorchTransformer(nn.Module):
 		# print("Torch function")
 		function_name = raw_func.__name__		
 		# print(raw_func.__name__)
+		# if function_name == "cat":
+		# 	print("cat........................................................................")
+		# 	print("")
 
 
 		# torch function may has no input
@@ -795,26 +803,38 @@ class TorchTransformer(nn.Module):
 		# check is user used or in torch function call
 		is_tensor_in = False
 		# tensor input		
-		if (len(logs) > 1) and (type(logs[0]) == torch.Tensor):
+		# multi tensor input
+		if isinstance(logs, tuple) and (type(logs[0]) == torch.Tensor):
 			cur_inputs = logs
 			is_tensor_in = True
 			return raw_func(*args, **kwargs)
-					
-		elif (len(logs) ==1) and (type(logs) == torch.Tensor):
+		# single tensor input
+		elif (type(logs) == torch.Tensor):
 			
 			cur_inputs = logs	
-			is_tensor_in = True			
+			is_tensor_in = True	
+			# print(*args)
+			# print(**kwargs)
 			return raw_func(*args, **kwargs)
-		
+		elif (type(logs) == nn.Parameter):
+			cur_inputs = logs	
+			is_tensor_in = True				
+			return raw_func(*args, **kwargs)
 		# log input
 		else:			
 			# multi inputs
 			bottoms = []
 			cur_inputs = []				
-			if len(logs) > 1:				
-				cur_log = logs[0]
+			# if len(logs) > 1:
+			# print(logs)	
+			# print(type(logs))		
+			if isinstance(logs, tuple) or isinstance(logs, list):
+				# may use origin input log as others' input 
+				# eg: densenet in torchvision 0.4.0
+				cur_log = copy.deepcopy(logs[0])
 				for log in logs:					
 					cur_inputs.append(log.cur_tensor)
+					# print(log.cur_tensor.size())
 					bottoms.append(log.cur_id)
 					# update informations
 					cur_log.graph.update(log.graph)					
@@ -823,6 +843,8 @@ class TorchTransformer(nn.Module):
 				cur_inputs = tuple(cur_inputs)
 			# one input
 			else:
+				# print(args)
+				# print(kwargs)
 				cur_log = logs
 				cur_inputs = cur_log.cur_tensor
 				bottoms.append(cur_log.cur_id)
@@ -842,7 +864,7 @@ class TorchTransformer(nn.Module):
 		# most multi output has one input
 		# if shape change
 		# store theese types of  opreation as a layer
-		if (len(logs) > 1) or (len(out_tensor) > 1) or (logs.cur_tensor.size() != out_tensor.size()):
+		if isinstance(logs, tuple) or isinstance(logs, list) or isinstance(out_tensor, tuple) or (logs.cur_tensor.size() != out_tensor.size()):
 			layer_name = "torch.{}_{}".format(function_name, len(cur_log.graph))
 			cur_log.graph[layer_name] = layer_name
 			cur_log.bottoms[layer_name] = bottoms
