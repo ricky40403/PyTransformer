@@ -5,9 +5,13 @@ import torchvision.models as models
 import copy
 from transformers.torchTransformer import TorchTransformer
 # from quantize import QConv2d
-model = models.__dict__["googlenet"]()
+model = models.__dict__["inception_v3"]()
 model.eval()
 # print(model)
+# input_tensor = torch.randn([1, 3, 224, 224])
+# out = model.forward(input_tensor)
+# print(out.size())
+# sys.exit()
 #print(len(model._modules))
 # sys.exit()
 
