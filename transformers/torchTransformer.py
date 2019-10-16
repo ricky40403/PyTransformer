@@ -179,22 +179,22 @@ class Log(object):
 
 				# handle args and kwargs in different condition
 				# or some may cause error
-				# out_tensor = func(args, kwargs)
-				if len(args) > 1:
-					if len(kwargs) > 0:
-						out_tensor = func(args, kwargs)
-					else:
-						out_tensor = func(args)
-				elif len(args) == 1:					
-					if len(kwargs) > 0:						
-						out_tensor = func(tuple(args[0]), kwargs)
-					else:
-						out_tensor = func(tuple(args[0]))
-				else:
-					if len(kwargs) > 0:
-						out_tensor = func(kwargs)
-					else:
-						out_tensor = func()
+				out_tensor = func(*args, **kwargs)
+				# if len(args) > 1:
+				# 	if len(kwargs) > 0:
+				# 		out_tensor = func(args, kwargs)
+				# 	else:
+				# 		out_tensor = func(args)
+				# elif len(args) == 1:					
+				# 	if len(kwargs) > 0:						
+				# 		out_tensor = func(tuple(args[0]), kwargs)
+				# 	else:
+				# 		out_tensor = func(tuple(args[0]))
+				# else:
+				# 	if len(kwargs) > 0:
+				# 		out_tensor = func(kwargs)
+				# 	else:
+				# 		out_tensor = func()
 				
 				if out_tensor is not None:
 					self.cur_tensor = out_tensor
@@ -324,16 +324,20 @@ class UnitLayer(nn.Module):
 	def forward(self, log, *args):
 		# print("1233312")
 		# print(log)
-		print(self.origin_layer)
+		# print("Helloooooooooooooooooooooooooooooooooooooooooo")
+		# print(self.origin_layer)
+
 		# prevent overwrite log for other forward flow
 		cur_log = copy.deepcopy(log)
 		# print(cur_log)
 		cur_log.putLayer(self.origin_layer)
 		# print(log.cur_tensor)
 		log_tensor = log.getTensor()
-		
+
 		# print("------------------------------------------------")
-		# print("Helloooooooooooooooooooooooooooooooooooooooooo")
+		# print(len(cur_log.graph))
+		# print(cur_log.cur_id)
+		# print("Helloooooooooooooooooooooooooooooooooooooooooo")	
 		# print(self.origin_layer)
 		# print(cur_log.getG())
 		# print(log_tensor.size())
@@ -343,9 +347,11 @@ class UnitLayer(nn.Module):
 		# set as leaf for copy
 		out_tensor = self.origin_layer(log_tensor).clone().detach()		
 		cur_log.setTensor(out_tensor)
-		
+
 		#cur_log.putLayer(self.origin_layer)
-		print("Return : {}".format(cur_log.cur_tensor.size()))
+		# print("UniLayer Return : {}".format(cur_log.cur_tensor.size()))
+		# print("UniLayer Return : {}".format(cur_log))
+		# print("///////////////////////////////////////////////////////")
 		return cur_log
 
 
@@ -383,14 +389,35 @@ class TorchTransformer(nn.Module):
 		tmp_model = self._trans_unit(copy.deepcopy(model))
 		
 		# accept_functions = ["flatten", "split", "relu_", "cat", "adaptive_avg_pool2d"]
+		# for f in dir(torch):
+		# 	if isinstance(getattr(torch, f) ,types.BuiltinFunctionType):
+		# 		print(f)
+		# sys.exit()
 		for f in dir(torch):
+			# if private function, pass
+			if f.startswith("_"):
+				continue
 			if isinstance(getattr(torch, f) ,types.BuiltinMethodType) or isinstance(getattr(torch, f) ,types.BuiltinFunctionType):			
 				self._raw_TrochFuncs[f] = getattr(torch, f)
 				setattr(torch, f, _ReplaceFunc(getattr(torch,f), self._torchFunctions))
     
 		# accept_functionals = ["adaptive_avg_pool2d", "linear"]
+		# for f in dir(F):
+		# 	if isinstance(getattr(F, f) ,types.FunctionType):
+		# 		print(f)
+		# sys.exit()
 		for f in dir(F):
-			if isinstance(getattr(F, f) ,types.BuiltinMethodType) or isinstance(getattr(F, f) ,types.BuiltinFunctionType):
+			if f.startswith("_"):
+				continue
+			# if isinstance(getattr(F, f) ,types.FunctionType):
+			# 	print(f)
+			# print(type(getattr(F, '_list_with_default')))
+			# print(isinstance(getattr(F, 'adaptive_avg_pool2d') ,types.FunctionType))
+			# sys.exit()
+			if isinstance(getattr(F, f) ,types.BuiltinMethodType) or isinstance(getattr(F, f) ,types.BuiltinFunctionType) or isinstance(getattr(F, f) ,types.FunctionType):
+				# if private function, pass
+				
+				# if isinstance(getattr(F, f), types.FunctionType):
 				self._raw_TrochFunctionals[f] = getattr(F, f)
 				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
 				
@@ -411,13 +438,14 @@ class TorchTransformer(nn.Module):
 		# sys.exit()
 		# forward to generate log
 		self.log = tmp_model.forward(self.log)
+		# print(self.log)
 
 		# reset back 
 		for f in self._raw_TrochFuncs:
-			setattr(torch, f, _ReplaceFunc(getattr(torch, f), self._raw_TrochFuncs[f]))
+			setattr(torch, f, self._raw_TrochFuncs[f])
    
 		for f in self._raw_TrochFunctionals:
-			setattr(F, f, _ReplaceFunc(getattr(F, f), self._raw_TrochFunctionals[f]))
+			setattr(F, f, self._raw_TrochFunctionals[f])
    
 		# torch.cat = self._raw_cat
 		# torch.max = self._raw_max
@@ -495,11 +523,16 @@ class TorchTransformer(nn.Module):
 				
 				# add, sub, mul...,etc. (custom string)
 				if layer_type == "str":
-					layer_type = key
+					# the key should be XXX_{idx_prevent_duplicate}
+					tmp_key = key.split("_")
+					tmp_key[-1] = "_{}".format(layer_index)	
+					tmp_key = "".join(tmp_key)
+					layer_type = tmp_key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 
 				topNames[key] = layer_type
+				# print(key)
 				# print(layer_type," ", bottoms_graph[key])
     			# print(bottoms_graph[key])
     
@@ -583,7 +616,11 @@ class TorchTransformer(nn.Module):
 				layer_type = layer.__class__.__name__				
 				# add, sub, mul...,etc. (custom string)
 				if layer_type == "str":
-					layer_type = key
+					# the key should be XXX_{idx_prevent_duplicate}
+					tmp_key = key.split("_")
+					tmp_key[-1] = "_{}".format(layer_index)	
+					tmp_key = "".join(tmp_key)
+					layer_type = tmp_key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 					
@@ -594,7 +631,11 @@ class TorchTransformer(nn.Module):
 				layer_type = layer.__class__.__name__				
 				# add, sub, mul...,etc. (custom string)
 				if layer_type == "str":
-					layer_type = key
+					# the key should be XXX_{idx_prevent_duplicate}
+					tmp_key = key.split("_")
+					tmp_key[-1] = "_{}".format(layer_index)	
+					tmp_key = "".join(tmp_key)
+					layer_type = tmp_key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 								
@@ -784,7 +825,7 @@ class TorchTransformer(nn.Module):
 			cur_args = args[1:]
 		elif len(kwargs) > 0:
 			
-			return raw_func(kwargs)
+			return raw_func(**kwargs)
 		else:
 			
 			return raw_func()
@@ -816,15 +857,22 @@ class TorchTransformer(nn.Module):
 		# log input
 		else:		
 			# multi inputs
+			bottoms = []
 			cur_inputs = []			
 			if len(logs) > 1:
 				cur_log = logs[0]
 				for log in logs:
 					cur_inputs.append(log.cur_tensor)
+					bottoms.append(log.cur_id)
+					# update informations
+					cur_log.graph.update(log.graph)					
+					cur_log.bottoms.update(log.bottoms)
+					cur_log.output_shape.update(log.output_shape)
 				cur_inputs = tuple(cur_inputs)
 			else:
 				cur_log = logs
 				cur_inputs = cur_log.cur_tensor
+				bottoms.append(cur_log.cur_id)
 				
 
 		# get output through raw function
@@ -833,14 +881,14 @@ class TorchTransformer(nn.Module):
 			# sometimes happened cur_args = (x,) and funciton can not accept			
 			if len(cur_args) == 1:
 				cur_args = cur_args[0]
-				print(cur_args)
+				# print(cur_args)
 			if len(kwargs) > 0:
-				out_tensor = raw_func(cur_inputs, cur_args, kwargs).clone().detach()
+				out_tensor = raw_func(cur_inputs, cur_args, **kwargs).clone().detach()
 			else:
 				out_tensor = raw_func(cur_inputs, cur_args).clone().detach()		
 		else:
 			if len(kwargs) > 1:
-				out_tensor = raw_func(cur_inputs, kwargs).clone().detach()
+				out_tensor = raw_func(cur_inputs, **kwargs).clone().detach()
 			else:				
 				out_tensor = raw_func(cur_inputs).clone().detach()
 				
@@ -849,10 +897,20 @@ class TorchTransformer(nn.Module):
 		if is_tensor_in:
 			return out_tensor
 
+		# most multi input change to one output
+		# most multi output has one input
+		# if shape change
+		# store theese types of  opreation as a layer
+		if (len(logs) > 1) or (len(out_tensor) > 1) or (logs.cur_tensor.size() != out_tensor.size()):
+			layer_name = "torch.{}_{}".format(function_name, len(cur_log.graph))
+			cur_log.graph[layer_name] = layer_name
+			cur_log.bottoms[layer_name] = bottoms
+			cur_log.cur_id = layer_name
+
 		
 		# if multi-output
 		if len(out_tensor) > 1:			
-			print("multi output")				
+			# print("multi output")				
 			out_logs = []
 			for t in out_tensor:				
 				out_log = copy.deepcopy(cur_log)
@@ -862,22 +920,25 @@ class TorchTransformer(nn.Module):
 			# sometimes will has (out, ) and this lens is >1
 			if len(out_logs) == 1:
 				out_logs = out_logs[0]
-				print("Return : {}".format(out_logs.cur_tensor.size()))
+				# print("Torch Return : {}".format(out_logs.cur_tensor.size()))
 
 			return out_logs
 		else:
-			print("single output")
-			print("Return : {}".format(out_tensor.size()))
+			# print("single output")
+			# print("Torch Return : {}".format(out_tensor.size()))
 			cur_log.setTensor(out_tensor)
 			return cur_log
 		
 
 	# torch.functionals
 	def _torchFunctionals(self, raw_func, *args, **kwargs):
-		print("Functional")
+		
+     
+		# print("Functional")
 		function_name = raw_func.__name__		
-		print(raw_func.__name__)
-
+		# print(raw_func.__name__)
+		# if isinstance(raw_func ,types.FunctionType):
+		# 	sys.exit()
 		
 
 		# functional has input expect affine_grid
@@ -891,30 +952,41 @@ class TorchTransformer(nn.Module):
 		is_tensor_in = False
 		# tensor input
 		if (len(logs) > 1) and (type(logs[0]) == torch.Tensor):
-			print(logs[0].size(), logs[1].size())
+			# print(logs[0].size(), logs[1].size())
 			cur_inputs = logs
 			is_tensor_in = True
+			out = raw_func(*args, **kwargs)
+			# print("Functional return : {}".format(out.size()))
 			return raw_func(*args, **kwargs)
 
 		elif (len(logs) ==1) and (type(logs) == torch.Tensor):			
-			print(logs[0].size())
+			# print(logs[0].size())
+			
 			cur_inputs = logs	
 			is_tensor_in = True			
+			out = raw_func(*args, **kwargs)
+			# print("Functional return : {}".format(out.size()))
 			return raw_func(*args, **kwargs)
 		
 		# log input
-		else:
-		
+		else:			
 			# multi inputs
+			bottoms = []
 			cur_inputs = []			
 			if len(logs) > 1:
 				cur_log = logs[0]
 				for log in logs:
 					cur_inputs.append(log.cur_tensor)
+					bottoms.append(log.cur_id)
+					# update informations
+					cur_log.graph.update(log.graph)					
+					cur_log.bottoms.update(log.bottoms)
+					cur_log.output_shape.update(log.output_shape)
 				cur_inputs = tuple(cur_inputs)
 			else:
 				cur_log = logs
-				cur_inputs = logs.cur_tensor
+				cur_inputs = cur_log.cur_tensor
+				bottoms.append(cur_log.cur_id)
 
 		
 			
@@ -923,29 +995,60 @@ class TorchTransformer(nn.Module):
 		# 	print(kwargs)
 		# get output through raw function
 		if len(cur_args) > 0:
+			# sometimes will has (args, ) 
+			if len(cur_args) == 1:
+				cur_args = cur_args[0]
+
 			if len(kwargs) > 0:
-				out_tensor = raw_func(cur_inputs, cur_args, kwargs).clone().detach()
-			else:
+				# print(kwargs)
+				# print(raw_func)
+				out_tensor = raw_func(cur_inputs, cur_args, **kwargs).clone().detach()
+			else:				
 				out_tensor = raw_func(cur_inputs, cur_args).clone().detach()		
 		else:
 			if len(kwargs) > 1:
-				out_tensor = raw_func(cur_inputs, kwargs).clone().detach()
+				out_tensor = raw_func(cur_inputs, **kwargs).clone().detach()
 			else:
 				out_tensor = raw_func(cur_inputs).clone().detach()
 		
 		# if function call, just return out tensor
 		if is_tensor_in:
+			# print("Functional tensorin return : {}".format(out_tensor.size()))
 			return out_tensor
 
+		# if log input and is function type, store as an layer
+		if isinstance(raw_func, types.FunctionType):
+			# print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH")
+			# print(function_name)
+			layer_name = "F.{}_{}".format(function_name, id(out_tensor))			
+			# print(layer_name)
+			# print(id(out_tensor))
+			if layer_name in cur_log.graph:
+				tmp_list = []
+				tmp_list.append(out_tensor)
+				tmp_tensor = copy.deepcopy(tmp_list[-1])
+				layer_name = "F.{}_{}".format(function_name, id(tmp_tensor))	
+				
+			# if layer_name in cur_log.graph:
+			# 	sys.exit()
+			cur_log.graph[layer_name] = layer_name	
+			# print(bottoms)
+			# sys.exit()
+			cur_log.bottoms[layer_name] = bottoms
+			cur_log.cur_id = layer_name
+			# print("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH")
+		
 		# if multi-output
-		if len(out_tensor) > 0:
+		if len(out_tensor) > 1:
 			out_logs = []
 			for t in out_tensor:				
 				out_log = copy.deepcopy(cur_log)
 				out_log.setTensor(t)			
-				out_logs.append(out_log)			
+				out_logs.append(out_log)	
+			# print("Functional Log return : ")		
 			return out_logs
 		else:
+			# print("Functional Log return : {}".format(out_tensor.size()))
 			cur_log.setTensor(out_tensor)
 			return cur_log
 

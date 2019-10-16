@@ -6,6 +6,7 @@ import copy
 from transformers.torchTransformer import TorchTransformer
 # from quantize import QConv2d
 model = models.__dict__["googlenet"]()
+model.eval()
 # print(model)
 #print(len(model._modules))
 # sys.exit()
