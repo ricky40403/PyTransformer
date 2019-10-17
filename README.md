@@ -50,8 +50,9 @@ model.eval()
 transofrmer = TorchTransformer()
 transofrmer.visualize(model, save_name= "example", graph_size = 80)
 # graph_size can modify to change the size of the output graph
-# graphviz does not auto fit the model's layers, which mean if the model is too deep, it will become too small to see.
-# so change the graph size to enlarge the layer 
+# graphviz does not auto fit the model's layers, which mean if the model is too deep.
+# And it will become too small to see.
+# So change the graph size to enlarge the image for higher resolution.
 ```  
 <img src=/examples/alexnet.png  height =500  width=100> 
 
