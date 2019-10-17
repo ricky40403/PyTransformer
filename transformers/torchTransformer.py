@@ -23,32 +23,7 @@ class _ReplaceFunc(object):
 	def __call__(self, *args, **kwargs):		
 		out = self.replace_func(self.torch_func, *args, **kwargs)
 		return out
-		# # def wrapper(*args, **kwargs):
-		# # 	out = self.replace_func(self.torch_func, *args, **kwargs)
-		# # 	return out
-		# # return wrapper
-		# # # has args
-		# if len(args) > 1:
-		# 	# print(args)
-		# 	# print(kwargs)
-		# 	if len(kwargs) > 0:
-		# 		out = self.replace_func(self.torch_func, args, kwargs)
-		# 	else:
-		# 		out = self.replace_func(self.torch_func, args)
-		# # has only input log
-		# elif len(args) == 1:
-		# 	args = args[0]			
-		# 	if len(kwargs) > 0:
-		# 		out = self.replace_func(self.torch_func, args, kwargs)
-		# 	else:
-		# 		out = self.replace_func(self.torch_func, args)
-		# else:
-		# 	if len(kwargs) > 0:
-		# 		out = self.replace_func(self.torch_func, kwargs)
-		# 	else:
-		# 		out = self.replace_func(self.torch_func)
-		
-		# return out
+
 
 class Log(object):
 	def __init__(self):
@@ -97,9 +72,6 @@ class Log(object):
 			# layer_id = id(self.tmp_list[-1])
 			layer_id = id(tmp_layer)
 
-		# if layer_id in self.graph:
-		# 	print("FK....................................")
-
 		self.graph[layer_id] = layer
 		self.bottoms[layer_id] = [self.cur_id]
 		self.cur_id = layer_id
@@ -136,11 +108,7 @@ class Log(object):
 			def wrapper(*args, **kwargs):				
 				func = self.cur_tensor.__getattribute__(name)
 				out_tensor = func(*args, **kwargs)
-				# print(type(out_tensor))
-				# print(out_tensor.size())
-				# print(len(out_tensor))
-				# if multi output:
-				# if len(out_tensor) > 1:
+
 				if not isinstance(out_tensor, torch.Tensor):
 					out_logs = []
 					for t in out_tensor:
@@ -148,14 +116,11 @@ class Log(object):
 						out_log.setTensor(t)						
 						out_logs.append(out_log)
 						
-					# print("multi Tensor return : {}".format(out_logs))
 					return out_logs
 				else:						
-					# print("///////////////////////////////////////////////////")
 					self.cur_tensor = out_tensor
 					self.output_shape[self.cur_id] = out_tensor.size() 
-					
-					# print("Tensor return : {}".format(out_tensor.size()))
+
 					return self
 			# print(wrapper)
 			return wrapper
@@ -281,11 +246,6 @@ class UnitLayer(nn.Module):
 
 	# general layer should has only one input?
 	def forward(self, log, *args):
-		# print("1233312")
-		# print(log)
-		# print("Helloooooooooooooooooooooooooooooooooooooooooo")
-		# print(self.origin_layer)
-
 		# prevent overwrite log for other forward flow
 		cur_log = copy.deepcopy(log)
 		# print(cur_log)
@@ -293,26 +253,10 @@ class UnitLayer(nn.Module):
 		
 		# print(log.cur_tensor)
 		log_tensor = log.getTensor()
-		# print(log.cur_id)
-		# print(log_tensor.size())
-		# print("------------------------------------------------")
-		# print(len(cur_log.graph))
-		# print(cur_log.cur_id)
-		# print("Helloooooooooooooooooooooooooooooooooooooooooo")	
-		# print(self.origin_layer)
-		# print(cur_log.getG())
-		# print(log_tensor.size())
-		# print(type(log_tensor))
-		# print("------------------------------------------------")
-		# print(self.origin_layer)
-		# set as leaf for copy
+
 		out_tensor = self.origin_layer(log_tensor).clone().detach()		
 		cur_log.setTensor(out_tensor)
 
-		#cur_log.putLayer(self.origin_layer)
-		# print("UniLayer Return : {}".format(cur_log.cur_tensor.size()))
-		# print("UniLayer Return : {}".format(cur_log))
-		# print("///////////////////////////////////////////////////////")
 		return cur_log
 
 
@@ -349,17 +293,8 @@ class TorchTransformer(nn.Module):
 
 		tmp_model = self._trans_unit(copy.deepcopy(model))
 		
-		# accept_functions = ["flatten", "split", "relu_", "cat", "adaptive_avg_pool2d"]
-		# for f in dir(torch):
-		# 	if isinstance(getattr(torch, f) ,types.BuiltinFunctionType):
-		# 		print(f)
-		# sys.exit()
 		for f in dir(torch):
-			# if f == "addmm":
-			# 	print(type(f))
-			# 	print(isinstance(getattr(torch, f) ,types.BuiltinMethodType))
-			# 	print(isinstance(getattr(torch, f) ,types.BuiltinFunctionType))
-			# 	sys.exit()
+
 			# if private function, pass
 			if f.startswith("_"):
 				continue
@@ -367,44 +302,17 @@ class TorchTransformer(nn.Module):
 				self._raw_TrochFuncs[f] = getattr(torch, f)
 				setattr(torch, f, _ReplaceFunc(getattr(torch,f), self._torchFunctions))
     
-		# accept_functionals = ["adaptive_avg_pool2d", "linear"]
-		# for f in dir(F):
-		# 	if isinstance(getattr(F, f) ,types.FunctionType):
-		# 		print(f)
-		# sys.exit()
 		for f in dir(F):
+			# if private function, pass
 			if f.startswith("_"):
 				continue
-			# if isinstance(getattr(F, f) ,types.FunctionType):
-			# 	print(f)
-			# print(type(getattr(F, '_list_with_default')))
-			# print(isinstance(getattr(F, 'adaptive_avg_pool2d') ,types.FunctionType))
-			# sys.exit()
-			if isinstance(getattr(F, f) ,types.BuiltinMethodType) or isinstance(getattr(F, f) ,types.BuiltinFunctionType) or isinstance(getattr(F, f) ,types.FunctionType):
-				# if private function, pass
-				
-				# if isinstance(getattr(F, f), types.FunctionType):
+
+			if isinstance(getattr(F, f) ,types.BuiltinMethodType) or isinstance(getattr(F, f) ,types.BuiltinFunctionType) or isinstance(getattr(F, f) ,types.FunctionType):				
 				self._raw_TrochFunctionals[f] = getattr(F, f)
 				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
 				
-		
-		# # set trans function
-		# self._raw_cat = torch.cat
-		# torch.cat = _ReplaceFunc(self._raw_cat, self._trans_cat)			
-		# self._raw_max = torch.max
-		# torch.max = _ReplaceFunc(self._raw_max, self._trans_max)
-		# self._raw_flatten = torch.flatten
-		# torch.flatten = _ReplaceFunc(self._raw_flatten, self._trans_flatten)
-		# self._raw_split = torch.split
-		# torch.split = _ReplaceFunc(self._raw_split, self._trans_split)
-		# self._raw_transpose = torch.transpose
-		# torch.transpose = _ReplaceFunc(self._raw_transpose, self._trans_transpose)
 
-		# print(tmp_model)
-		# sys.exit()
-		# forward to generate log
 		self.log = tmp_model.forward(self.log)
-		# print(self.log)
 
 		# reset back 
 		for f in self._raw_TrochFuncs:
@@ -412,25 +320,12 @@ class TorchTransformer(nn.Module):
    
 		for f in self._raw_TrochFunctionals:
 			setattr(F, f, self._raw_TrochFunctionals[f])
-   
-		# torch.cat = self._raw_cat
-		# torch.max = self._raw_max
-		# torch.flatten = self._raw_flatten
-		# torch.split = self._raw_split
+
 		del tmp_model
 	
 	def summary(self, model = None, input_tensor = None):
 		input_tensor = torch.randn([1, 3, 224, 224])
-		# model_graph = self.log.getGraph()
-		# if graph empty		
-		# if model is None:
-		# 	# check if use self modules
-		# 	if len(self._modules) > 0:
-		# 		self._build_graph(self, input_tensor)	
-		# 	else:
-		# 		raise ValueError("Please input model to summary")
-		# else:
-		# 	self._build_graph(model, input_tensor)
+
 		self._build_graph(model, input_tensor)
    
 		# get dicts and variables
@@ -446,8 +341,7 @@ class TorchTransformer(nn.Module):
 		line_title = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format("Index","Layer (type)", "Bottoms","Output Shape", "Param #")
 		print(line_title)
 		print("---------------------------------------------------------------------------")	
-		# for key in model_graph:
-		# 	print(model_graph[key])
+
 		
 		for layer_index, key in enumerate(model_graph):	
 			
@@ -498,10 +392,7 @@ class TorchTransformer(nn.Module):
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 
 				topNames[key] = layer_type
-				# print(key)
-				# print(layer_type," ", bottoms_graph[key])
-    			# print(bottoms_graph[key])
-    
+
 				# Layer Bottoms
 				bottoms = []
 				for b_key in bottoms_graph[key]:
@@ -669,125 +560,10 @@ class TorchTransformer(nn.Module):
 						setattr(model, module_name, _layer_new)
 	
 	
-
-	# def _trans_cat(self, raw_func, logs, dim=0, out=None):
-	# 	# input should be log		
-	# 	# copy log to prevent overwrite
-	# 	cur_log = copy.deepcopy(logs[0])
-	# 	cur_bottom = [cur_log.cur_id]
-	# 	tensors = [cur_log.getTensor()]
-	# 	if len(logs) > 1:			
-	# 		# cur_graph = cur_log.getGraph()
-	# 		for log in logs[1:]:
-	# 			# tmp_graph = log.getGraph()
-	# 			cur_log.graph.update(log.graph)
-	# 			cur_log.bottoms.update(log.bottoms)
-	# 			cur_log.output_shape.update(log.output_shape)
-	# 			cur_bottom.append(log.cur_id)
-	# 			tensors.append(log.cur_tensor)
-	
-	# 	# Layer information		
-	# 	layer_name = "torchCat_{}".format(len(cur_log.graph))
-	# 	cur_log.graph[layer_name] = layer_name
-	# 	cur_log.bottoms[layer_name] = cur_bottom
-	# 	cur_log.cur_id = layer_name		
-		
-	# 	# fot output shape
-	# 	# handle tensor operation
-	# 	# log_tensor = cur_log.getTensor()		
-		
-	# 	# set as leaf for copy					
-	# 	out_tensor = raw_func(tuple(tensors), dim=dim, out=out).clone().detach()		
-	# 	cur_log.setTensor(out_tensor)
-		
-	# 	return cur_log
-	
-	# def _trans_transpose(self, raw_func, log, dim0, dim1):
-	# 	log = copy.deepcopy(log)
-	# 	layer_name = "torchTranspose_{}".format(len(log.getGraph()))
-	# 	log.graph[layer_name] = layer_name
-	# 	log.bottoms[layer_name] = [log.cur_id]
-	# 	log.cur_id = layer_name
-	# 	log_tensor = log.getTensor()		
-	# 	# set as leaf for copy					
-	# 	out_tensor = raw_func(log_tensor, dim0, dim1).clone().detach()		
-	# 	log.setTensor(out_tensor)
-		
-	# 	return log
-  
-  
-	# # torch.flatten()
-	# def _trans_flatten(self, raw_func, log, start_dim = 0, end_dim = -1):		
-	# 	# input should be log		
-	# 	# copy log to prevent overwrite
-	# 	log = copy.deepcopy(log)
-		
-	# 	# Layer information		
-	# 	layer_name = "torchFlatten_{}".format(len(log.getGraph()))
-	# 	log.graph[layer_name] = layer_name
-	# 	log.bottoms[layer_name] = [log.cur_id]
-	# 	log.cur_id = layer_name			
-		
-	# 	# fot output shape
-	# 	# handle tensor operation
-	# 	log_tensor = log.getTensor()		
-	# 	# set as leaf for copy					
-	# 	out_tensor = raw_func(log_tensor, start_dim = start_dim, end_dim = end_dim).clone().detach()		
-	# 	log.setTensor(out_tensor)
-		
-	# 	return log
-					
-	# # torch.max()
-	# def _trans_max(self, raw_func, log):	
-	# 	# input should be log		
-	# 	# copy log to prevent overwrite
-	# 	log = copy.deepcopy(log)	
-		
-	# 	# Layer information		
-	# 	layer_name = "torchMax_{}".format(len(log.getGraph))
-	# 	log.graph[layer_name] = layer_name
-	# 	log.bottoms[layer_name] = [log.cur_id]
-	# 	log.cur_id = layer_name		
-		
-	# 	# fot output shape
-	# 	# handle tensor operation
-	# 	log_tensor = log.getTensor()		
-	# 	# set as leaf for copy					
-	# 	out_tensor = raw_func(log_tensor).clone().detach()		
-	# 	log.setTensor(out_tensor)
-		
-	# 	return log
-	
-	# # torch.split()
-	# def _trans_split(self, raw_func, log, split_size_or_sections, dim=0):	
-	# 	# input should be log		
-	# 	# copy log to prevent overwrite
-	# 	log = copy.deepcopy(log)	
-		
-	# 	# Layer information		
-	# 	layer_name = "torchSplit_{}".format(len(log.getGraph))
-	# 	log.graph[layer_name] = layer_name
-	# 	log.bottoms[layer_name] = [log.cur_id]
-	# 	log.cur_id = layer_name		
-		
-	# 	# fot output shape
-	# 	# handle tensor operation
-	# 	log_tensor = log.getTensor()		
-	# 	# set as leaf for copy					
-	# 	out_tensor = raw_func(log_tensor, split_size_or_sections, dim = dim).clone().detach()		
-	# 	log.setTensor(out_tensor)
-		
-	# 	return log
-
 	def _torchFunctions(self, raw_func, *args, **kwargs):
 		# print("Torch function")
-		function_name = raw_func.__name__		
-		# print(raw_func.__name__)
-		# if function_name == "cat":
-		# 	print("cat........................................................................")
-		# 	print("")
-
-
+		function_name = raw_func.__name__
+  
 		# torch function may has no input
 		# so check first
 		
@@ -825,9 +601,7 @@ class TorchTransformer(nn.Module):
 			# multi inputs
 			bottoms = []
 			cur_inputs = []				
-			# if len(logs) > 1:
-			# print(logs)	
-			# print(type(logs))		
+	
 			if isinstance(logs, tuple) or isinstance(logs, list):
 				# may use origin input log as others' input 
 				# eg: densenet in torchvision 0.4.0
@@ -882,14 +656,9 @@ class TorchTransformer(nn.Module):
 			# sometimes will has (out, ) and this lens is >1
 			if len(out_logs) == 1:
 				out_logs = out_logs[0]
-				# print("Torch Return : {}".format(out_logs.cur_tensor.size()))
-			
-			# print("Torch Return : {}".format(out_logs.cur_tensor.size()))
 			return out_logs
 
-		else:			
-			# print("single output")
-			# print("Torch Return : {}".format(out_tensor.size()))
+		else:
 			cur_log.setTensor(out_tensor)   			
 			return cur_log
 		
