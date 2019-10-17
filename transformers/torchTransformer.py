@@ -26,6 +26,9 @@ class _ReplaceFunc(object):
 
 
 class Log(object):
+	"""!
+	This class use as an log to replace input tensor and store all the information
+	"""
 	def __init__(self):
 		self.graph = OrderedDict()
 		self.bottoms = OrderedDict()
@@ -36,19 +39,33 @@ class Log(object):
 		self.log_init()
 
 	def __len__(self):
-		# one log
+		"""!
+		Log should be one
+		"""
 		return 1
 
 	def __copy__(self):
-		pass
+		"""!
+		copy, create new one and assign clone tensor in log
+		"""
+		copy_paster = Log()
+		copy_paster.__dict__.update(self.__dict__)
+		copy_paster.cur_tensor = self.cur_tensor.clone()
+		return copy_paster
 
 	def __deepcopy__(self, memo):
+		"""!
+		deepcopy, create new one and assign clone tensor in log
+		"""
 		copy_paster = Log()
 		copy_paster.__dict__.update(self.__dict__)
 		copy_paster.cur_tensor = self.cur_tensor.clone()
 		return copy_paster
 
 	def reset(self):
+		"""
+		This function reset all attribute in log.		
+		"""
 		self.graph = OrderedDict()
 		self.bottoms = OrderedDict()
 		self.output_shape = OrderedDict()
@@ -60,6 +77,9 @@ class Log(object):
 	  
 	# add data input layer to log
 	def log_init(self):
+		"""
+		Init log attribute, set Data Layer as the first layer
+		"""
 		layer_id = "Data"
 		self.graph[layer_id] = layer_id
 		self.bottoms[layer_id] = None
@@ -69,7 +89,10 @@ class Log(object):
 
   
 	# for general layer (should has only one input?)
-	def putLayer(self, layer):		
+	def putLayer(self, layer):	
+		"""!
+		Put genreal layer's information into log
+		"""	
 		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)
 		# tmp_layer = copy.deepcopy(layer)
 		layer_id = id(layer)
@@ -85,19 +108,36 @@ class Log(object):
 		self.bottoms[layer_id] = [self.cur_id]
 		self.cur_id = layer_id
 		# del layer, tmp_layer, layer_id
+
 	def getGraph(self):
+		"""!
+		This function get the layers graph from log
+		"""
 		return self.graph
 	
 	def getBottoms(self):
+		"""!
+		This function get the layers bottoms from log
+		"""
 		return self.bottoms
 	
 	def getOutShapes(self):
+		"""!
+		This function get the layers output shape from log
+		"""
 		return self.output_shape
 	
 	def getTensor(self):
+		"""!
+		This function get the layers current tensor (output tensor)
+		"""
 		return self.cur_tensor
 	
-	def setTensor(self, tensor):		
+	def setTensor(self, tensor):
+		"""!
+		This function set the layer's current tensor
+		and also change output shape by the input tensor
+		"""		
 		self.cur_tensor = tensor
 		if tensor is not None:
 			self.output_shape[self.cur_id] = self.cur_tensor.size()
@@ -106,7 +146,10 @@ class Log(object):
 	
 	
 	# handle tensor operation(eg: tensor.view)
-	def __getattr__(self, name):		
+	def __getattr__(self, name):
+		"""!
+		This function handle all the tensor operation
+		"""		
 		if name == "__deepcopy__" or name == "__setstate__":
 			return object.__getattribute__(self, name)			
 		# if get data => get cur_tensor.data
@@ -142,6 +185,9 @@ class Log(object):
 		
 	
 	def __add__(self, other):
+		"""!
+		Log addition
+		"""
 		#print("add")
 		# merge other branch		
 		self.graph.update(other.graph)
@@ -159,6 +205,9 @@ class Log(object):
 	
 
 	def __iadd__(self, other):
+		"""!
+		Log identity addition
+		"""
 		#print("iadd")		
 		# merge other branch		
 		self.graph.update(other.graph)
@@ -175,6 +224,9 @@ class Log(object):
 	
 
 	def __sub__(self, other):
+		"""!
+		Log substraction
+		"""
 		#print("sub")
 		# merge other branch
 		self.graph.update(other.graph)
@@ -191,6 +243,9 @@ class Log(object):
 	
 
 	def __isub__(self, other):
+		"""!
+		Log identity substraction
+		"""
 		#print("isub")
 		# merge other branch
 		self.graph.update(other.graph)
@@ -207,6 +262,9 @@ class Log(object):
 	
 
 	def __mul__(self, other):
+		"""!
+		Log multiplication
+		"""
 		#print("mul")
 		# merge other branch
 		self.graph.update(other.graph)
@@ -223,6 +281,9 @@ class Log(object):
 	
 
 	def __imul__(self, other):
+		"""!
+		Log identity multiplication
+		"""
 		#print("imul")
 		# merge other branch
 		self.graph.update(other.graph)
@@ -239,11 +300,21 @@ class Log(object):
 
 
 	def size(self, dim=None):
+		"""!
+		This function return the size of the tensor by given dim
+
+		@param dim: defult None, return as tensor.size(dim)
+
+		@return tensor size by dim
+		"""
 		return self.cur_tensor.size(dim) if dim is not None else self.cur_tensor.size()
 
 
 
 class UnitLayer(nn.Module):
+	"""!
+	This class is an Unit-layer act like an identity layer
+	"""
 	def __init__(self, ori_layer):
 		super(UnitLayer, self).__init__()
 		self.origin_layer = ori_layer
@@ -270,10 +341,12 @@ class UnitLayer(nn.Module):
 
 
 class TorchTransformer(nn.Module):
+	"""!
+	This class handle layer swap, summary, visualization of the input model
+	"""
 	def __init__(self):
 		super(TorchTransformer, self).__init__()
-
-		# self._module_graph = OrderedDict()
+		
 		self._register_dict = OrderedDict()
 
 		self.log = Log()
@@ -294,7 +367,10 @@ class TorchTransformer(nn.Module):
 		pass
 	
 	def _build_graph(self, model, input_tensor = None):
-		print(input_tensor.is_cuda)
+
+		if input_tensor is None:
+			raise ValueError("Please set input tensor")
+
 		# reset log
 		self.log = Log()		
 		# add Data input
@@ -334,8 +410,16 @@ class TorchTransformer(nn.Module):
 		del tmp_model
 	
 	def summary(self, model = None, input_tensor = None):
-		input_tensor = torch.randn([1, 3, 224, 224])		
-		input_tensor = input_tensor.cuda()		
+		"""!
+		This function act like keras summary function
+		
+		@param model: input model to summary
+
+		@param input_tensor: input data of the model to forward
+
+		"""
+		# input_tensor = torch.randn([1, 3, 224, 224])		
+		# input_tensor = input_tensor.cuda()		
 		
 
 		self._build_graph(model, input_tensor)
@@ -450,7 +534,20 @@ class TorchTransformer(nn.Module):
 		# return model
 
 	def visualize(self, model = None, input_tensor = None, save_name = None, graph_size = 30):
-		input_tensor = torch.randn([1, 3, 224, 224])
+		"""!
+		This functin visualize the model architecture
+
+		@param model: input model to summary
+
+		@param input_tensor: input data of the model to forward
+
+		@param save_name: if save_name is not None, it will save as '{save_name}.png'
+
+		@param graph_size: graph_size for graphviz, to help increase the resolution of the output graph
+
+		@return dot, graphviz's Digraph element
+		"""
+		# input_tensor = torch.randn([1, 3, 224, 224])
 		# model_graph = self.log.getGraph()
 		
 		# if graph empty		
@@ -573,6 +670,9 @@ class TorchTransformer(nn.Module):
 	
 	
 	def _torchFunctions(self, raw_func, *args, **kwargs):
+		"""!
+		The replaced torch function (eg: torch.{function}) will go here
+		"""
 		# print("Torch function")
 		function_name = raw_func.__name__
   
@@ -678,7 +778,9 @@ class TorchTransformer(nn.Module):
 
 	# torch.functionals
 	def _torchFunctionals(self, raw_func, *args, **kwargs):	
-     
+		"""!
+		The replaced torch.functional function (eg: F.{function}) will go here
+		"""
 		# print("Functional")
 		function_name = raw_func.__name__		
 		# print(raw_func.__name__)		

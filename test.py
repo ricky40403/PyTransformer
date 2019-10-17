@@ -10,6 +10,7 @@ model.cuda()
 model = model.eval()
 
 transofrmer = TorchTransformer()
-
-net = transofrmer.summary(model)
+input_tensor = torch.randn([1, 3, 224, 224])		
+input_tensor = input_tensor.cuda()		
+net = transofrmer.summary(model, input_tensor=input_tensor)
 # transofrmer.visualize(model, save_name= "example", graph_size = 80)
