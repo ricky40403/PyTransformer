@@ -16,7 +16,8 @@ model = nn.Sequential(
 model.eval()
 
 transofrmer = TorchTransformer()
-net = transofrmer.summary(model)
+input_tensor = torch.randn([1, 3, 224, 224])
+net = transofrmer.summary(model, input_tensor)
 
 ##########################################################################################
 Index| Layer (type)    | Bottoms         Output Shape              Param #
