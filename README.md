@@ -61,7 +61,8 @@ other example is in [examples](/examples)
 Suggest that the layers input should not be too many because the graphviz may generate image slow.(eg: densenet161 in torchvision 0.4.0 may stuck when generating png)
 
 ## TODO
-- [ ] support registration for custom layer
+- [ ] support registration(replace) for custom layertype
+- [ ] support replacement of specified layer in model for specified layer
 - [x] activation size calculation for supported layers
 - [x] network summary output as in keras
 - [x] model graph visualization
