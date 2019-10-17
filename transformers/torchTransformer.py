@@ -39,6 +39,15 @@ class Log(object):
 		# one log
 		return 1
 
+	def __copy__(self):
+		pass
+
+	def __deepcopy__(self, memo):
+		copy_paster = Log()
+		copy_paster.__dict__.update(self.__dict__)
+		copy_paster.cur_tensor = self.cur_tensor.clone()
+		return copy_paster
+
 	def reset(self):
 		self.graph = OrderedDict()
 		self.bottoms = OrderedDict()
@@ -252,9 +261,9 @@ class UnitLayer(nn.Module):
 		cur_log.putLayer(self.origin_layer)
 		
 		# print(log.cur_tensor)
-		log_tensor = log.getTensor()
-
-		out_tensor = self.origin_layer(log_tensor).clone().detach()		
+		log_tensor = log.getTensor()		
+		# out_tensor = self.origin_layer(log_tensor).clone().detach()		
+		out_tensor = self.origin_layer(log_tensor).clone()
 		cur_log.setTensor(out_tensor)
 
 		return cur_log
@@ -285,6 +294,7 @@ class TorchTransformer(nn.Module):
 		pass
 	
 	def _build_graph(self, model, input_tensor = None):
+		print(input_tensor.is_cuda)
 		# reset log
 		self.log = Log()		
 		# add Data input
@@ -296,7 +306,7 @@ class TorchTransformer(nn.Module):
 		for f in dir(torch):
 
 			# if private function, pass
-			if f.startswith("_"):
+			if f.startswith("_") or "tensor" == f:
 				continue
 			if isinstance(getattr(torch, f) ,types.BuiltinMethodType) or isinstance(getattr(torch, f) ,types.BuiltinFunctionType):
 				self._raw_TrochFuncs[f] = getattr(torch, f)
@@ -312,7 +322,7 @@ class TorchTransformer(nn.Module):
 				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
 				
 
-		self.log = tmp_model.forward(self.log)
+		self.log = tmp_model.forward(self.log)		
 
 		# reset back 
 		for f in self._raw_TrochFuncs:
@@ -324,7 +334,9 @@ class TorchTransformer(nn.Module):
 		del tmp_model
 	
 	def summary(self, model = None, input_tensor = None):
-		input_tensor = torch.randn([1, 3, 224, 224])
+		input_tensor = torch.randn([1, 3, 224, 224])		
+		input_tensor = input_tensor.cuda()		
+		
 
 		self._build_graph(model, input_tensor)
    
@@ -628,7 +640,8 @@ class TorchTransformer(nn.Module):
 		args[0] = cur_inputs
 		args = tuple(args)
 		# send into origin functions
-		out_tensor = raw_func(*args, **kwargs).clone().detach()
+		#out_tensor = raw_func(*args, **kwargs).clone().detach()
+		out_tensor = raw_func(*args, **kwargs).clone()
 		
 		# if function call, just return out tensor
 		if is_tensor_in:
@@ -723,7 +736,8 @@ class TorchTransformer(nn.Module):
 		args[0] = cur_inputs
 		args = tuple(args)
 		# send into origin functions
-		out_tensor = raw_func(*args, **kwargs).clone().detach()
+		#out_tensor = raw_func(*args, **kwargs).clone().detach()
+		out_tensor = raw_func(*args, **kwargs).clone()
 		
 		# if function call, just return out tensor
 		if is_tensor_in:
@@ -732,15 +746,18 @@ class TorchTransformer(nn.Module):
 		# if log input and is function type, store as an layer
 		if isinstance(raw_func, types.FunctionType):			
 			# use multiple address as name to prevent duplicate address
-			layer_name = "F.{}_{}{}{}".format(function_name, id(out_tensor), id(args), id(kwargs))
+			layer_name = "F.{}_{}{}{}".format(function_name, id(out_tensor), id(args), id(kwargs))			
 			# replace with new address if still duplicate
 			if layer_name in cur_log.graph:
-				tmp_list = []
-				tmp_list.append(out_tensor)
-				tmp_tensor = copy.deepcopy(tmp_list[-1])
+				# tmp_list = []
+				# tmp_list.append(out_tensor)
+				# tmp_tensor = copy.deepcopy(tmp_list[-1])
+				# tmp_tensor = tmp_list[-1].clone()				
+				tmp_tensor = torch.tensor([0])
+				
 				# should not duplicate again?
-				layer_name = "F.{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs))				
-			
+				layer_name = "FF.{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs), )				
+
 			cur_log.graph[layer_name] = layer_name				
 			cur_log.bottoms[layer_name] = bottoms
 			cur_log.cur_id = layer_name			
