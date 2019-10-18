@@ -7,7 +7,7 @@ import inspect
 
 from graphviz import Digraph
 import pydot
-
+import time
 from collections import OrderedDict
 
 
@@ -469,7 +469,7 @@ class TorchTransformer(nn.Module):
 				
 				total_params += param_weight_num
 				
-				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, "", output_shape, param_weight_num)
+				new_layer = "{:5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, "", output_shape, param_weight_num)
 				print(new_layer)
 				
 			else:
@@ -517,7 +517,7 @@ class TorchTransformer(nn.Module):
 				for idx, b in enumerate(bottoms):					
 					# if more than one bottom, only print bottom
 					if idx == 0:						
-						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index+1, layer_type, b, output_shape, param_weight_num)				
+						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format(layer_index, layer_type, b, output_shape, param_weight_num)				
 					else:
 						new_layer = "{:>5}| {:<15} | {:<15} {:<25} {:<15}".format("", "", b, "", "")
 					print(new_layer)
@@ -859,7 +859,8 @@ class TorchTransformer(nn.Module):
 				tmp_tensor = torch.tensor([0])
 				
 				# should not duplicate again?
-				layer_name = layer_name.split('.')[0] + "F" + ".{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs))				
+				# layer_name = layer_name.split('.')[0] + "F" + ".{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs))				
+				layer_name = "F.{}_{}{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs), int((time.time()*100000)%1000000))
 
 			cur_log.graph[layer_name] = layer_name				
 			cur_log.bottoms[layer_name] = bottoms
