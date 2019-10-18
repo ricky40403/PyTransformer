@@ -850,7 +850,8 @@ class TorchTransformer(nn.Module):
 			# use multiple address as name to prevent duplicate address
 			layer_name = "F.{}_{}{}{}".format(function_name, id(out_tensor), id(args), id(kwargs))			
 			# replace with new address if still duplicate
-			if layer_name in cur_log.graph:
+			while layer_name in cur_log.graph:
+			#if layer_name in cur_log.graph:
 				# tmp_list = []
 				# tmp_list.append(out_tensor)
 				# tmp_tensor = copy.deepcopy(tmp_list[-1])
@@ -858,7 +859,7 @@ class TorchTransformer(nn.Module):
 				tmp_tensor = torch.tensor([0])
 				
 				# should not duplicate again?
-				layer_name = "FF.{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs), )				
+				layer_name = layer_name.split('.')[0] + "F" + ".{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs))				
 
 			cur_log.graph[layer_name] = layer_name				
 			cur_log.bottoms[layer_name] = bottoms
