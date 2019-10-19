@@ -38,7 +38,7 @@ Total Non-Trainable params: 0
 Total params: 33500
 ```  
 
-other  example is in [example.ipynb](/examples/example.ipynb)
+other  example is in [example.ipynb](summary_example.ipynb)
 
 ## visualize
 visualize using [graphviz](https://graphviz.readthedocs.io/en/stable/) and [pydot](https://pypi.org/project/pydot/)  
@@ -54,9 +54,19 @@ transofrmer.visualize(model, save_name= "example", graph_size = 80)
 # And it will become too small to see.
 # So change the graph size to enlarge the image for higher resolution.
 ```  
-<img src=/examples/alexnet.png  height =500  width=100> 
+<img src=/examples/alexnet.png  height =800  width=100> 
 
-other example is in [examples](/examples)
+example is in [example](visualize_example.ipynb)  
+other example image is in [examples](/examples)
+
+## transform layers
+you can register layer type to transform  
+First you need to register to transformer and the transformer will transform layers you registered. 
+
+example in in [transform_example](transform_example.ipynb)
+
+
+
 
 ## Note
 Suggest that the layers input should not be too many because the graphviz may generate image slow.(eg: densenet161 in torchvision 0.4.0 may stuck when generating png)
