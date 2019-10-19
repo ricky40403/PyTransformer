@@ -1,343 +1,18 @@
+import time
 import copy
 import types
+import inspect 
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import inspect 
 
-from graphviz import Digraph
 import pydot
-import time
-from collections import OrderedDict
+from graphviz import Digraph
 
+from .utils import _ReplaceFunc, Log, UnitLayer
 
-class _ReplaceFunc(object):
-	"""!
-	This Function replace torch functions with self-define Function.
-	Inorder to get the imformation of torch model layer infomration.
-	"""
-	def __init__(self, ori_func, replace_func, **kwargs):
-		self.torch_func = ori_func
-		self.replace_func = replace_func
-
-	def __call__(self, *args, **kwargs):		
-		out = self.replace_func(self.torch_func, *args, **kwargs)
-		return out
-
-
-class Log(object):
-	"""!
-	This class use as an log to replace input tensor and store all the information
-	"""
-	def __init__(self):
-		self.graph = OrderedDict()
-		self.bottoms = OrderedDict()
-		self.output_shape = OrderedDict()
-		self.cur_tensor = None
-		self.cur_id = None
-		self.tmp_list = None
-		self.log_init()
-
-	def __len__(self):
-		"""!
-		Log should be one
-		"""
-		return 1
-
-	def __copy__(self):
-		"""!
-		copy, create new one and assign clone tensor in log
-		"""
-		copy_paster = Log()
-		copy_paster.__dict__.update(self.__dict__)
-		copy_paster.cur_tensor = self.cur_tensor.clone()
-		return copy_paster
-
-	def __deepcopy__(self, memo):
-		"""!
-		deepcopy, create new one and assign clone tensor in log
-		"""
-		copy_paster = Log()
-		copy_paster.__dict__.update(self.__dict__)
-		copy_paster.cur_tensor = self.cur_tensor.clone()
-		return copy_paster
-
-	def reset(self):
-		"""
-		This function reset all attribute in log.		
-		"""
-		self.graph = OrderedDict()
-		self.bottoms = OrderedDict()
-		self.output_shape = OrderedDict()
-		self.cur_tensor = None
-		self.cur_id = None
-		self.tmp_list = []
-		self.log_init()
-	
-	  
-	# add data input layer to log
-	def log_init(self):
-		"""
-		Init log attribute, set Data Layer as the first layer
-		"""
-		layer_id = "Data"
-		self.graph[layer_id] = layer_id
-		self.bottoms[layer_id] = None
-		self.output_shape[layer_id] = ""
-		self.cur_id = layer_id
-		self.tmp_list = []
-
-  
-	# for general layer (should has only one input?)
-	def putLayer(self, layer):	
-		"""!
-		Put genreal layer's information into log
-		"""	
-		# force use different address id ( prevent use same defined layer more than once, eg: bottleneck in torchvision)
-		# tmp_layer = copy.deepcopy(layer)
-		layer_id = id(layer)
-		self.tmp_list.append(layer)
-		layer_id = id(self.tmp_list[-1])
-		if layer_id in self.graph:
-			tmp_layer = copy.deepcopy(layer)
-			self.tmp_list.append(tmp_layer)
-			# layer_id = id(self.tmp_list[-1])
-			layer_id = id(tmp_layer)
-
-		self.graph[layer_id] = layer
-		self.bottoms[layer_id] = [self.cur_id]
-		self.cur_id = layer_id
-		# del layer, tmp_layer, layer_id
-
-	def getGraph(self):
-		"""!
-		This function get the layers graph from log
-		"""
-		return self.graph
-	
-	def getBottoms(self):
-		"""!
-		This function get the layers bottoms from log
-		"""
-		return self.bottoms
-	
-	def getOutShapes(self):
-		"""!
-		This function get the layers output shape from log
-		"""
-		return self.output_shape
-	
-	def getTensor(self):
-		"""!
-		This function get the layers current tensor (output tensor)
-		"""
-		return self.cur_tensor
-	
-	def setTensor(self, tensor):
-		"""!
-		This function set the layer's current tensor
-		and also change output shape by the input tensor
-		"""		
-		self.cur_tensor = tensor
-		if tensor is not None:
-			self.output_shape[self.cur_id] = self.cur_tensor.size()
-		else:
-			self.output_shape[self.cur_id] = None
-	
-	
-	# handle tensor operation(eg: tensor.view)
-	def __getattr__(self, name):
-		"""!
-		This function handle all the tensor operation
-		"""		
-		if name == "__deepcopy__" or name == "__setstate__":
-			return object.__getattribute__(self, name)			
-		# if get data => get cur_tensor.data
-		elif name == "data":
-			return self.cur_tensor.data		
-		
-		elif hasattr(self.cur_tensor, name):			
-			def wrapper(*args, **kwargs):				
-				func = self.cur_tensor.__getattribute__(name)
-				out_tensor = func(*args, **kwargs)
-
-				if not isinstance(out_tensor, torch.Tensor):
-					out_logs = []
-					for t in out_tensor:
-						out_log = copy.deepcopy(self)
-						out_log.setTensor(t)						
-						out_logs.append(out_log)
-						
-					return out_logs
-				else:						
-					self.cur_tensor = out_tensor
-					self.output_shape[self.cur_id] = out_tensor.size() 
-
-					return self
-			# print(wrapper)
-			return wrapper
-			
-			# return self
-
-
-		else:
-			return object.__getattribute__(self, name)			
-		
-	
-	def __add__(self, other):
-		"""!
-		Log addition
-		"""
-		#print("add")
-		# merge other branch		
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "add_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other		
-		
-		return self		
-	
-
-	def __iadd__(self, other):
-		"""!
-		Log identity addition
-		"""
-		#print("iadd")		
-		# merge other branch		
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "iadd_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other		
-		return self
-	
-
-	def __sub__(self, other):
-		"""!
-		Log substraction
-		"""
-		#print("sub")
-		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "sub_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		return self
-	
-
-	def __isub__(self, other):
-		"""!
-		Log identity substraction
-		"""
-		#print("isub")
-		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "sub_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		return self
-	
-
-	def __mul__(self, other):
-		"""!
-		Log multiplication
-		"""
-		#print("mul")
-		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "mul_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		return self
-	
-
-	def __imul__(self, other):
-		"""!
-		Log identity multiplication
-		"""
-		#print("imul")
-		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "mul_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		return self
-
-
-	def size(self, dim=None):
-		"""!
-		This function return the size of the tensor by given dim
-
-		@param dim: defult None, return as tensor.size(dim)
-
-		@return tensor size by dim
-		"""
-		return self.cur_tensor.size(dim) if dim is not None else self.cur_tensor.size()
-
-
-
-class UnitLayer(nn.Module):
-	"""!
-	This class is an Unit-layer act like an identity layer
-	"""
-	def __init__(self, ori_layer):
-		super(UnitLayer, self).__init__()
-		self.origin_layer = ori_layer
-		
-
-	def setOrigin(self, ori_layer):
-		self.origin_layer = ori_layer
-
-
-	# general layer should has only one input?
-	def forward(self, log, *args):
-		# prevent overwrite log for other forward flow
-		cur_log = copy.deepcopy(log)
-		# print(cur_log)
-		cur_log.putLayer(self.origin_layer)
-		
-		# print(log.cur_tensor)
-		log_tensor = log.getTensor()		
-		# out_tensor = self.origin_layer(log_tensor).clone().detach()		
-		out_tensor = self.origin_layer(log_tensor).clone()
-		cur_log.setTensor(out_tensor)
-
-		return cur_log
 
 
 class TorchTransformer(nn.Module):
@@ -348,67 +23,73 @@ class TorchTransformer(nn.Module):
 		super(TorchTransformer, self).__init__()
 		
 		self._register_dict = OrderedDict()
-
-		self.log = Log()
-		
+		self.log = Log()		
 		self._raw_TrochFuncs = OrderedDict()
 		self._raw_TrochFunctionals = OrderedDict()
-		self._raw_cat = None		
-		self._raw_max = None
-		self._raw_flatten = None
-		self._raw_split = None
-		self._raw_transpose = None
-
 
 	# register class to trans
 	def register(self, origin_class, target_class):
+		"""!
+		This function register which class should transform to target class.		
+		"""
 		print("register", origin_class, target_class)
+
 		self._register_dict[origin_class] = target_class
+
 		pass
 	
-	def _build_graph(self, model, input_tensor = None):
+	def trans_layers(self, model, update = True):
+		"""!
+		This function transform layer by layers in register dictionarys
 
-		if input_tensor is None:
-			raise ValueError("Please set input tensor")
+		@param model: input model to transfer
 
-		# reset log
-		self.log = Log()		
-		# add Data input
-		self.log.setTensor(input_tensor)		
+		@param update: default is True, wether to update the paramter from the orign layer or not. 
+		Note that it will update matched parameters only.
 
+		@return transfered model
+		"""
+		# print("trans layer")
+		if len(self._register_dict) == 0:
+			print("No layer to swap")
+			print("Please use register( {origin_layer}, {target_layer} ) to register layer")
+			return model
+		else:
+			for module_name in model._modules:			
+				# has children
+				if len(model._modules[module_name]._modules) > 0:
+					self.trans_layers(model._modules[module_name])
+				else:
+					if type(getattr(model, module_name)) in self._register_dict:
+						# use inspect.signature to know args and kwargs of __init__
+						_sig = inspect.signature(type(getattr(model, module_name)))
+						_kwargs = {}
+						for key in _sig.parameters:
+							if _sig.parameters[key].default == inspect.Parameter.empty: #args 
+								# assign args
+								# default values should be handled more properly, unknown data type might be an issue
+								if 'kernel' in key:
+									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=3)
+									value = 3
+								elif 'channel' in key:
+									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=32)
+									value = 32
+								else:
+									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=None)
+									value = None
+						
+								_kwargs[key] = value
 
-		tmp_model = self._trans_unit(copy.deepcopy(model))
-		
-		for f in dir(torch):
+						_attr_dict = getattr(model, module_name).__dict__
+						_layer_new = self._register_dict[type(getattr(model, module_name))](**_kwargs) # only give positional args
+						_layer_new.__dict__.update(_attr_dict)
 
-			# if private function, pass
-			if f.startswith("_") or "tensor" == f:
-				continue
-			if isinstance(getattr(torch, f) ,types.BuiltinMethodType) or isinstance(getattr(torch, f) ,types.BuiltinFunctionType):
-				self._raw_TrochFuncs[f] = getattr(torch, f)
-				setattr(torch, f, _ReplaceFunc(getattr(torch,f), self._torchFunctions))
-    
-		for f in dir(F):
-			# if private function, pass
-			if f.startswith("_"):
-				continue
-
-			if isinstance(getattr(F, f) ,types.BuiltinMethodType) or isinstance(getattr(F, f) ,types.BuiltinFunctionType) or isinstance(getattr(F, f) ,types.FunctionType):				
-				self._raw_TrochFunctionals[f] = getattr(F, f)
-				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
-				
-
-		self.log = tmp_model.forward(self.log)		
-
-		# reset back 
-		for f in self._raw_TrochFuncs:
-			setattr(torch, f, self._raw_TrochFuncs[f])
-   
-		for f in self._raw_TrochFunctionals:
-			setattr(F, f, self._raw_TrochFunctionals[f])
-
-		del tmp_model
+						setattr(model, module_name, _layer_new)
+		return model
 	
+	
+	
+
 	def summary(self, model = None, input_tensor = None):
 		"""!
 		This function act like keras summary function
@@ -571,10 +252,11 @@ class TorchTransformer(nn.Module):
 		dot = Digraph(node_attr=node_attr, graph_attr=dict(size="{},{}".format(graph_size, graph_size)))	
 
 		# get dicts and variables
-		model_graph = self.log.getGraph()
-		# print(model_graph)
+		model_graph = self.log.getGraph()		
 		bottoms_graph = self.log.getBottoms()
-		# print(bottoms_graph)
+		output_shape_graph = self.log.getOutShapes()
+		topNames = OrderedDict()
+		
 		for layer_index, key in enumerate(model_graph):
 			# Input Data layer
 			if bottoms_graph[key] is None:
@@ -585,7 +267,12 @@ class TorchTransformer(nn.Module):
 					layer_type = key
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
-					
+				
+				output_shape = "{}".format(tuple(output_shape_graph[key]))
+				topNames[key] = layer_type
+				output_shape = "[{}]".format(tuple(output_shape_graph[key]))
+				layer_type = layer_type + "\nShape: " + output_shape
+
 				dot.node(str(key), layer_type, fillcolor='orange')			
 			else:
 				# Layer Information
@@ -601,9 +288,19 @@ class TorchTransformer(nn.Module):
 				else:
 					layer_type = layer.__class__.__name__ + "_{}".format(layer_index)
 				
+				topNames[key] = layer_type
 				# layer_type = layer_type
 				# print("Layer: {}".format(layer_type))
 				# print("Key: {}".format(key))
+				# add bottoms
+
+				layer_type = layer_type + "\nBottoms: "
+				for b_key in bottoms_graph[key]:
+					layer_type = layer_type + topNames[b_key] + "\n" 
+				
+				output_shape = "[{}]".format(tuple(output_shape_graph[key]))
+				layer_type = layer_type + "Shape: " + output_shape
+
 				dot.node(str(key), layer_type, fillcolor='orange')				
 				# link bottoms
 				# print("Bottoms: ")
@@ -616,6 +313,49 @@ class TorchTransformer(nn.Module):
 			(graph,) = pydot.graph_from_dot_data(dot.source)
 			graph.write_png(save_name + ".png" )
 		return dot
+
+	def _build_graph(self, model, input_tensor = None):
+
+		if input_tensor is None:
+			raise ValueError("Please set input tensor")
+
+		# reset log
+		self.log = Log()		
+		# add Data input
+		self.log.setTensor(input_tensor)		
+
+
+		tmp_model = self._trans_unit(copy.deepcopy(model))
+		
+		for f in dir(torch):
+
+			# if private function, pass
+			if f.startswith("_") or "tensor" == f:
+				continue
+			if isinstance(getattr(torch, f) ,types.BuiltinMethodType) or isinstance(getattr(torch, f) ,types.BuiltinFunctionType):
+				self._raw_TrochFuncs[f] = getattr(torch, f)
+				setattr(torch, f, _ReplaceFunc(getattr(torch,f), self._torchFunctions))
+    
+		for f in dir(F):
+			# if private function, pass
+			if f.startswith("_"):
+				continue
+
+			if isinstance(getattr(F, f) ,types.BuiltinMethodType) or isinstance(getattr(F, f) ,types.BuiltinFunctionType) or isinstance(getattr(F, f) ,types.FunctionType):				
+				self._raw_TrochFunctionals[f] = getattr(F, f)
+				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
+				
+
+		self.log = tmp_model.forward(self.log)		
+
+		# reset back 
+		for f in self._raw_TrochFuncs:
+			setattr(torch, f, self._raw_TrochFuncs[f])
+   
+		for f in self._raw_TrochFunctionals:
+			setattr(F, f, self._raw_TrochFunctionals[f])
+
+		del tmp_model
 		
 	def _trans_unit(self, model):
 		# print("TRNS_UNIT")
@@ -628,46 +368,6 @@ class TorchTransformer(nn.Module):
 				setattr(model, module_name, unitlayer)
 
 		return model
-	
-
-	def trans_layers(self, model):
-		# print("trans layer")
-		if len(self._register_dict) == 0:
-			print("No layer to swap")
-			print("Please use register( {origin_layer}, {target_layer} ) to register layer")
-			return model
-		else:
-			for module_name in model._modules:			
-				# has children
-				if len(model._modules[module_name]._modules) > 0:
-					self.trans_layers(model._modules[module_name])
-				else:
-					if type(getattr(model, module_name)) in self._register_dict:
-						# use inspect.signature to know args and kwargs of __init__
-						_sig = inspect.signature(type(getattr(model, module_name)))
-						_kwargs = {}
-						for key in _sig.parameters:
-							if _sig.parameters[key].default == inspect.Parameter.empty: #args 
-								# assign args
-								# default values should be handled more properly, unknown data type might be an issue
-								if 'kernel' in key:
-									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=3)
-									value = 3
-								elif 'channel' in key:
-									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=32)
-									value = 32
-								else:
-									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=None)
-									value = None
-						
-								_kwargs[key] = value
-
-						_attr_dict = getattr(model, module_name).__dict__
-						_layer_new = self._register_dict[type(getattr(model, module_name))](**_kwargs) # only give positional args
-						_layer_new.__dict__.update(_attr_dict)
-
-						setattr(model, module_name, _layer_new)
-	
 	
 	def _torchFunctions(self, raw_func, *args, **kwargs):
 		"""!
@@ -775,7 +475,6 @@ class TorchTransformer(nn.Module):
 			cur_log.setTensor(out_tensor)   			
 			return cur_log
 		
-
 	# torch.functionals
 	def _torchFunctionals(self, raw_func, *args, **kwargs):	
 		"""!
