@@ -327,7 +327,7 @@ class TorchTransformer(nn.Module):
 
 
 		tmp_model = self._trans_unit(copy.deepcopy(model))
-		print(tmp_model)
+		# print(tmp_model)
 		
 		for f in dir(torch):
 
@@ -362,10 +362,12 @@ class TorchTransformer(nn.Module):
 	def _trans_unit(self, model):
 		# print("TRNS_UNIT")
 		for module_name in model._modules:
+			if type(model._modules[module_name]) == UnitLayer:
+				continue
 			# has children
 			if len(model._modules[module_name]._modules) > 0:
-				self._trans_unit(model._modules[module_name])
-			else:				
+				model._modules[module_name] = self._trans_unit(model._modules[module_name])
+			else:
 				unitlayer = UnitLayer(getattr(model, module_name))
 				setattr(model, module_name, unitlayer)
 
