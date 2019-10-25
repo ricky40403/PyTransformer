@@ -58,27 +58,28 @@ class TorchTransformer(nn.Module):
 			for module_name in model._modules:			
 				# has children
 				if len(model._modules[module_name]._modules) > 0:
-					self.trans_layers(model._modules[module_name])
+					self.trans_layers(model._modules[module_name], update)
 				else:
 					if type(getattr(model, module_name)) in self._register_dict:
 						# use inspect.signature to know args and kwargs of __init__
 						_sig = inspect.signature(type(getattr(model, module_name)))
 						_kwargs = {}
-						for key in _sig.parameters:
-							if _sig.parameters[key].default == inspect.Parameter.empty: #args 
-								# assign args
-								# default values should be handled more properly, unknown data type might be an issue
-								if 'kernel' in key:
-									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=3)
-									value = 3
-								elif 'channel' in key:
-									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=32)
-									value = 32
-								else:
-									# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=None)
-									value = None
-						
-								_kwargs[key] = value
+						if update:
+							for key in _sig.parameters:
+								if _sig.parameters[key].default == inspect.Parameter.empty: #args 
+									# assign args
+									# default values should be handled more properly, unknown data type might be an issue
+									if 'kernel' in key:
+										# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=3)
+										value = 3
+									elif 'channel' in key:
+										# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=32)
+										value = 32
+									else:
+										# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=None)
+										value = None
+							
+									_kwargs[key] = value
 
 						_attr_dict = getattr(model, module_name).__dict__
 						_layer_new = self._register_dict[type(getattr(model, module_name))](**_kwargs) # only give positional args
@@ -326,6 +327,7 @@ class TorchTransformer(nn.Module):
 
 
 		tmp_model = self._trans_unit(copy.deepcopy(model))
+		print(tmp_model)
 		
 		for f in dir(torch):
 
