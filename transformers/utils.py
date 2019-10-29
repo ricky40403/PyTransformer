@@ -331,3 +331,23 @@ class UnitLayer(nn.Module):
 		cur_log.setTensor(out_tensor)
 
 		return cur_log
+
+
+def dict_merge(dct, merge_dct):
+	""" Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
+	updating only top-level keys, dict_merge recurses down into dicts nested
+	to an arbitrary depth, updating keys. The ``merge_dct`` is merged into
+	``dct``.
+	:param dct: dict onto which the merge is executed
+	:param merge_dct: dct merged into dct
+	:return: None
+	source: https://gist.github.com/angstwad/bf22d1822c38a92ec0a9
+	"""
+	import collections
+
+	for k, v in merge_dct.items():
+		if (k in dct and isinstance(dct[k], dict)
+				and isinstance(merge_dct[k], collections.Mapping)):
+			dict_merge(dct[k], v)
+		else:
+			dct[k] = v

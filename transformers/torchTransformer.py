@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import pydot
 from graphviz import Digraph
 
-from .utils import _ReplaceFunc, Log, UnitLayer
+from .utils import _ReplaceFunc, Log, UnitLayer, dict_merge
 
 
 
@@ -83,7 +83,7 @@ class TorchTransformer(nn.Module):
 
 						_attr_dict = getattr(model, module_name).__dict__
 						_layer_new = self._register_dict[type(getattr(model, module_name))](**_kwargs) # only give positional args
-						_layer_new.__dict__.update(_attr_dict)
+						dict_merge(_layer_new.__dict__, _attr_dict)
 
 						setattr(model, module_name, _layer_new)
 		return model
