@@ -143,3 +143,15 @@ class QLinear(nn.Linear):
         output = F.linear(input, qweight, qbias)
 
         return output
+
+class ReLUQuant(nn.Module):
+    def __init__(self, num_bits=8, momentum=0.1):
+        super(ReLUQuant, self).__init__()
+        self.quant = QuantMeasure(num_bits=num_bits, momentum=momentum)
+
+    
+    def forward(self, x):
+        x = torch.clamp(x, min=0)
+        x = self.quant(x)
+
+        return x
