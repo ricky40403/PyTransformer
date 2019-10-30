@@ -122,6 +122,34 @@ class QConv2d(nn.Conv2d):
         return output
 
 
+class QuantConv2d(nn.Conv2d):
+    """docstring for QuantConv2d."""
+
+    def __init__(self, in_channels, out_channels, kernel_size,
+                 stride=1, padding=0, dilation=1, groups=1, bias=True, num_bits=8, num_bits_weight=None, momentum=0.1):
+        super(QuantConv2d, self).__init__(in_channels, out_channels, kernel_size,
+                                      stride, padding, dilation, groups, bias)
+        self.num_bits = num_bits
+        self.num_bits_weight = num_bits_weight or num_bits
+        self.quant = QuantMeasure(num_bits=num_bits, momentum=momentum)
+
+
+    def forward(self, input):
+        input = self.quant(input)
+        qweight = quantize(self.weight, num_bits=self.num_bits_weight,
+                           min_value=float(self.weight.min()),
+                           max_value=float(self.weight.max()))
+        if self.bias is not None:
+            qbias = quantize(self.bias, num_bits=self.num_bits_weight)
+        else:
+            qbias = None
+        
+        output = F.conv2d(input, qweight, qbias, self.stride,
+                            self.padding, self.dilation, self.groups)
+
+        return output
+
+
 class QLinear(nn.Linear):
     """docstring for QConv2d."""
 
