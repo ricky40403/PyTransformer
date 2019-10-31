@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from collections import OrderedDict
 
+import inspect
+
 class _ReplaceFunc(object):
 	"""!
 	This Function replace torch functions with self-define Function.
@@ -26,6 +28,7 @@ class Log(object):
 		self.graph = OrderedDict()
 		self.bottoms = OrderedDict()
 		self.output_shape = OrderedDict()
+		self.record_tensor_op = []
 		self.cur_tensor = None
 		self.cur_id = None
 		self.tmp_list = None
@@ -126,6 +129,12 @@ class Log(object):
 		"""
 		return self.cur_tensor
 	
+	def getRecordTensorOP(self):
+		"""!
+		This function get the list of tensor_op record (e.g. __add__)
+		"""
+		return self.record_tensor_op
+
 	def setTensor(self, tensor):
 		"""!
 		This function set the layer's current tensor
@@ -192,7 +201,10 @@ class Log(object):
 		self.output_shape[layer_name] = self.cur_tensor.size()
 		self.cur_id = layer_name
 		# save memory
-		del other		
+		del other	
+
+		_stack = inspect.stack()
+		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
 		
 		return self		
 	
@@ -213,6 +225,8 @@ class Log(object):
 		self.cur_id = layer_name
 		# save memory
 		del other		
+		_stack = inspect.stack()
+		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
 		return self
 	
 
@@ -232,6 +246,8 @@ class Log(object):
 		self.cur_id = layer_name
 		# save memory
 		del other
+		_stack = inspect.stack()
+		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
 		return self
 	
 
@@ -251,6 +267,8 @@ class Log(object):
 		self.cur_id = layer_name
 		# save memory
 		del other
+		_stack = inspect.stack()
+		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
 		return self
 	
 
@@ -270,6 +288,8 @@ class Log(object):
 		self.cur_id = layer_name
 		# save memory
 		del other
+		_stack = inspect.stack()
+		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
 		return self
 	
 
@@ -289,6 +309,8 @@ class Log(object):
 		self.cur_id = layer_name
 		# save memory
 		del other
+		_stack = inspect.stack()
+		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
 		return self
 
 
