@@ -327,7 +327,8 @@ class TorchTransformer(nn.Module):
 		self.log.setTensor(input_tensor)		
 
 
-		tmp_model = self._trans_unit(copy.deepcopy(model))
+		# tmp_model = self._trans_unit(copy.deepcopy(model))
+		self._trans_unit(model)
 		# print(tmp_model)
 		
 		for f in dir(torch):
@@ -349,7 +350,10 @@ class TorchTransformer(nn.Module):
 				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
 				
 
-		self.log = tmp_model.forward(self.log)		
+		self.log = model.forward(self.log)	
+		# self.log = tmp_model.forward(self.log)		
+
+		self._restore_unit(model)
 
 		# reset back 
 		for f in self._raw_TrochFuncs:
@@ -358,7 +362,7 @@ class TorchTransformer(nn.Module):
 		for f in self._raw_TrochFunctionals:
 			setattr(F, f, self._raw_TrochFunctionals[f])
 
-		del tmp_model
+		# del tmp_model
 		
 	def _trans_unit(self, model):
 		# print("TRNS_UNIT")
@@ -372,6 +376,21 @@ class TorchTransformer(nn.Module):
 			else:
 				unitlayer = UnitLayer(getattr(model, module_name))
 				setattr(model, module_name, unitlayer)
+
+		return model
+
+	
+	def _restore_unit(self, model):
+		# print("restore_UNIT")
+		for module_name in model._modules:
+			# has children
+			if type(model._modules[module_name]) == UnitLayer:
+				# unitlayer = UnitLayer(getattr(model, module_name))
+				setattr(model, module_name, getattr(getattr(model, module_name), 'origin_layer'))
+
+			elif len(model._modules[module_name]._modules) > 0 and\
+				not (len(model._modules[module_name]._modules) == 1 and type(list(model._modules[module_name]._modules.values())[0]) == QuantMeasure):
+				model._modules[module_name] = self._restore_unit(model._modules[module_name])
 
 		return model
 	
