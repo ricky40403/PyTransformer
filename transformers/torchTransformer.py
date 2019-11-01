@@ -12,6 +12,7 @@ import pydot
 from graphviz import Digraph
 
 from .utils import _ReplaceFunc, Log, UnitLayer, dict_merge
+from .quantize import QuantMeasure
 
 
 
@@ -365,7 +366,8 @@ class TorchTransformer(nn.Module):
 			if type(model._modules[module_name]) == UnitLayer:
 				continue
 			# has children
-			if len(model._modules[module_name]._modules) > 0:
+			if len(model._modules[module_name]._modules) > 0 and\
+				not (len(model._modules[module_name]._modules) == 1 and type(list(model._modules[module_name]._modules.values())[0]) == QuantMeasure):
 				model._modules[module_name] = self._trans_unit(model._modules[module_name])
 			else:
 				unitlayer = UnitLayer(getattr(model, module_name))
