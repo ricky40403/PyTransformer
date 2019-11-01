@@ -77,3 +77,6 @@ Suggest that the layers input should not be too many because the graphviz may ge
 - [x] activation size calculation for supported layers
 - [x] network summary output as in keras
 - [x] model graph visualization
+- [ ] replace multiple modules to 1 module
+- [ ] conditional module replacement
+- [ ] add additional module to forward graph
