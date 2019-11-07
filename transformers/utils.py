@@ -204,7 +204,7 @@ class Log(object):
 		del other	
 
 		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
+		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		
 		return self		
 	
@@ -226,7 +226,7 @@ class Log(object):
 		# save memory
 		del other		
 		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
+		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -247,7 +247,7 @@ class Log(object):
 		# save memory
 		del other
 		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
+		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -268,7 +268,7 @@ class Log(object):
 		# save memory
 		del other
 		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
+		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -289,7 +289,7 @@ class Log(object):
 		# save memory
 		del other
 		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
+		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -310,7 +310,7 @@ class Log(object):
 		# save memory
 		del other
 		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno))
+		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 
 

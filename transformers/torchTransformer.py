@@ -481,6 +481,7 @@ class TorchTransformer(nn.Module):
 			cur_log.graph[layer_name] = layer_name
 			cur_log.bottoms[layer_name] = bottoms
 			cur_log.cur_id = layer_name
+			cur_log.record_tensor_op.append('torch_{}_{}_{}'.format(function_name, inspect.stack()[2].lineno, len(bottoms)))
 		
 		# multi output
 		if not isinstance(out_tensor , torch.Tensor):
@@ -589,6 +590,7 @@ class TorchTransformer(nn.Module):
 			cur_log.graph[layer_name] = layer_name				
 			cur_log.bottoms[layer_name] = bottoms
 			cur_log.cur_id = layer_name			
+			cur_log.record_tensor_op.append('F_{}_{}_{}'.format(function_name, inspect.stack()[2].lineno, len(bottoms)))
 		
 		# if multi-output
 		# if len(out_tensor) > 1:
