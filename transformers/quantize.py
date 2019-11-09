@@ -173,10 +173,10 @@ class QLinear(nn.Linear):
         return output
 
 class QuantLinear(nn.Linear):
-    """docstring for QConv2d."""
+    """docstring for QuantLinear."""
 
     def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None, momentum=0.1):
-        super(QLinear, self).__init__(in_features, out_features, bias)
+        super(QuantLinear, self).__init__(in_features, out_features, bias)
         self.num_bits = num_bits
         self.num_bits_weight = num_bits_weight or num_bits
         self.quant = QuantMeasure(num_bits=num_bits, momentum=momentum)
