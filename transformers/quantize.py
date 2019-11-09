@@ -172,6 +172,30 @@ class QLinear(nn.Linear):
 
         return output
 
+class QuantLinear(nn.Linear):
+    """docstring for QConv2d."""
+
+    def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None, momentum=0.1):
+        super(QLinear, self).__init__(in_features, out_features, bias)
+        self.num_bits = num_bits
+        self.num_bits_weight = num_bits_weight or num_bits
+        self.quant = QuantMeasure(num_bits=num_bits, momentum=momentum)
+
+
+    def forward(self, input):
+        input = self.quant(input)
+        qweight = quantize(self.weight, num_bits=self.num_bits_weight,
+                           min_value=float(self.weight.min()),
+                           max_value=float(self.weight.max()))
+        if self.bias is not None:
+            qbias = quantize(self.bias, num_bits=self.num_bits_weight)
+        else:
+            qbias = None
+
+        output = F.linear(input, qweight, qbias)
+
+        return output
+
 class ReLUQuant(nn.Module):
     def __init__(self, num_bits=8, momentum=0.1):
         super(ReLUQuant, self).__init__()
