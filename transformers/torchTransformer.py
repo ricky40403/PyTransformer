@@ -70,11 +70,13 @@ class TorchTransformer(nn.Module):
 								if _sig.parameters[key].default == inspect.Parameter.empty: #args 
 									# assign args
 									# default values should be handled more properly, unknown data type might be an issue
-									if 'kernel' in key:
+									if 'kernel' in key: # nn.Conv
 										# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=3)
 										value = 3
-									elif 'channel' in key:
+									elif 'channel' in key: # nn.BatchNorm
 										# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=32)
+										value = 32
+									elif '_features' in key: # nn.Linear
 										value = 32
 									else:
 										# _sig.parameters[key].replace(default=inspect.Parameter.empty, annotation=None)
