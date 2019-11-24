@@ -352,7 +352,9 @@ class TorchTransformer(nn.Module):
 				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
 				
 
-		self.log = model.forward(self.log)	
+		self.log = model.forward(self.log)
+		if type(self.log) == tuple: #multiple output, just pick the first (all contains the same graph)
+			self.log = self.log[0]	
 		# self.log = tmp_model.forward(self.log)		
 
 		self._restore_unit(model)
