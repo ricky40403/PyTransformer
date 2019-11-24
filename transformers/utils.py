@@ -163,7 +163,9 @@ class Log(object):
 				func = self.cur_tensor.__getattribute__(name)
 				out_tensor = func(*args, **kwargs)
 
-				if not isinstance(out_tensor, torch.Tensor):
+				if type(out_tensor) == int:
+					return out_tensor
+				elif not isinstance(out_tensor, torch.Tensor):
 					out_logs = []
 					for t in out_tensor:
 						out_log = copy.deepcopy(self)
@@ -184,7 +186,13 @@ class Log(object):
 
 		else:
 			return object.__getattribute__(self, name)			
-		
+	
+	def __getitem__(self, idx):
+		self.cur_tensor = self.cur_tensor[idx]
+		self.output_shape[self.cur_id] = self.cur_tensor.size() 
+
+		return self
+
 	
 	def __add__(self, other):
 		"""!
@@ -192,19 +200,21 @@ class Log(object):
 		"""
 		#print("add")
 		# merge other branch		
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "add_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other	
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "add_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other	
 
-		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		
 		return self		
 	
@@ -214,19 +224,21 @@ class Log(object):
 		Log identity addition
 		"""
 		#print("iadd")		
-		# merge other branch		
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "iadd_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other		
-		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		# merge other branch	
+		if type(other) == Log:	
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "iadd_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other		
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -236,18 +248,20 @@ class Log(object):
 		"""
 		#print("sub")
 		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "sub_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "sub_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -257,18 +271,20 @@ class Log(object):
 		"""
 		#print("isub")
 		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "sub_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "sub_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -278,18 +294,20 @@ class Log(object):
 		"""
 		#print("mul")
 		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "mul_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "mul_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 	
 
@@ -299,20 +317,111 @@ class Log(object):
 		"""
 		#print("imul")
 		# merge other branch
-		self.graph.update(other.graph)
-		self.bottoms.update(other.bottoms)
-		self.output_shape.update(other.output_shape)
-		layer_name = "mul_{}".format(len(self.graph))
-		self.graph[layer_name] = layer_name
-		self.bottoms[layer_name] = [self.cur_id, other.cur_id]
-		self.output_shape[layer_name] = self.cur_tensor.size()
-		self.cur_id = layer_name
-		# save memory
-		del other
-		_stack = inspect.stack()
-		self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "mul_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
 		return self
 
+	def __div__(self, other):
+		"""!
+		Log division
+		"""
+		#print("div")
+		# merge other branch
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "div_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		return self
+
+	def __idiv__(self, other):
+		"""!
+		Log identity division
+		"""
+		#print("idiv")
+		# merge other branch
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "idiv_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		return self
+
+	def __truediv__(self, other):
+		"""!
+		Log division
+		"""
+		#print("truediv")
+		# merge other branch
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "truediv_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		
+		return self
+
+	def __itruediv__(self, other):
+		"""!
+		Log division
+		"""
+		#print("itruediv")
+		# merge other branch
+		if type(other) == Log:
+			self.graph.update(other.graph)
+			self.bottoms.update(other.bottoms)
+			self.output_shape.update(other.output_shape)
+			layer_name = "itruediv_{}".format(len(self.graph))
+			self.graph[layer_name] = layer_name
+			self.bottoms[layer_name] = [self.cur_id, other.cur_id]
+			self.output_shape[layer_name] = self.cur_tensor.size()
+			self.cur_id = layer_name
+			# save memory
+			del other
+			_stack = inspect.stack()
+			if 'self' in _stack[1][0].f_locals:
+				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+		
+		return self
 
 	def size(self, dim=None):
 		"""!
