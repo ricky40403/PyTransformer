@@ -41,14 +41,22 @@ class UniformQuantize(InplaceFunction):
         if symmetric:
             qmin = -2. ** (num_bits - 1)
             qmax = 2 ** (num_bits - 1) - 1
-            max_value = torch.max(torch.abs(max_value), torch.abs(min_value))
+            max_value = abs(max_value)
+            min_value = abs(min_value)
+            if max_value > min_value:
+                scale = max_value / qmax
+            else:
+                max_value = min_value
+                scale = max_value / (qmax + 1)
+
             min_value = 0.
 
         else:
             qmin = 0.
             qmax = 2. ** num_bits - 1.
 
-        scale = (max_value - min_value) / (qmax - qmin)
+            scale = (max_value - min_value) / (qmax - qmin)
+            
         scale = max(scale, 1e-8)
 
         output.add_(-min_value).div_(scale)
