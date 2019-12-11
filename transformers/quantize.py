@@ -134,11 +134,12 @@ class QuantConv2d(nn.Conv2d):
     """docstring for QuantConv2d."""
 
     def __init__(self, in_channels, out_channels, kernel_size,
-                 stride=1, padding=0, dilation=1, groups=1, bias=True, num_bits=8, num_bits_weight=None, momentum=0.1):
+                 stride=1, padding=0, dilation=1, groups=1, bias=True, num_bits=8, num_bits_weight=None, num_bits_bias=16, momentum=0.1):
         super(QuantConv2d, self).__init__(in_channels, out_channels, kernel_size,
                                       stride, padding, dilation, groups, bias)
         self.num_bits = num_bits
         self.num_bits_weight = num_bits_weight or num_bits
+        self.num_bits_bias = num_bits_bias
         self.quant = QuantMeasure(num_bits=num_bits, momentum=momentum)
 
 
@@ -148,7 +149,7 @@ class QuantConv2d(nn.Conv2d):
                            min_value=float(self.weight.min()),
                            max_value=float(self.weight.max()))
         if self.bias is not None:
-            qbias = quantize(self.bias, num_bits=self.num_bits_weight)
+            qbias = quantize(self.bias, num_bits=self.num_bits_bias)
         else:
             qbias = None
         
@@ -183,10 +184,11 @@ class QLinear(nn.Linear):
 class QuantLinear(nn.Linear):
     """docstring for QuantLinear."""
 
-    def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None, momentum=0.1):
+    def __init__(self, in_features, out_features, bias=True, num_bits=8, num_bits_weight=None, num_bits_bias=16, momentum=0.1):
         super(QuantLinear, self).__init__(in_features, out_features, bias)
         self.num_bits = num_bits
         self.num_bits_weight = num_bits_weight or num_bits
+        self.num_bits_bias = num_bits_bias
         self.quant = QuantMeasure(num_bits=num_bits, momentum=momentum)
 
 
@@ -196,7 +198,7 @@ class QuantLinear(nn.Linear):
                            min_value=float(self.weight.min()),
                            max_value=float(self.weight.max()))
         if self.bias is not None:
-            qbias = quantize(self.bias, num_bits=self.num_bits_weight)
+            qbias = quantize(self.bias, num_bits=self.num_bits_bias)
         else:
             qbias = None
 
