@@ -213,8 +213,9 @@ class Log(object):
 			del other	
 
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('add', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		
 		return self		
 	
@@ -237,8 +238,9 @@ class Log(object):
 			# save memory
 			del other		
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('iadd', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 	
 
@@ -260,8 +262,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('sub', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 	
 
@@ -283,8 +286,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('isub', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 	
 
@@ -306,8 +310,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('mul', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 	
 
@@ -329,8 +334,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('imul', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 
 	def __div__(self, other):
@@ -351,8 +357,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('div', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 
 	def __idiv__(self, other):
@@ -373,8 +380,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('idiv', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		return self
 
 	def __truediv__(self, other):
@@ -395,8 +403,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('truediv', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		
 		return self
 
@@ -418,8 +427,9 @@ class Log(object):
 			# save memory
 			del other
 			_stack = inspect.stack()
-			if 'self' in _stack[1][0].f_locals:
-				self.record_tensor_op.append('{}_{}_{}'.format(_stack[1][0].f_locals['self'].__class__.__name__, _stack[1].lineno, len(self.bottoms[layer_name])))
+			# if 'self' in _stack[1][0].f_locals:
+			if _stack[1].function == 'forward':
+				self.record_tensor_op.append((layer_name, '{}_{}_{}'.format('itruediv', _stack[1].lineno, len(self.bottoms[layer_name]))))
 		
 		return self
 

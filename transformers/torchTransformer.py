@@ -27,6 +27,7 @@ class TorchTransformer(nn.Module):
 		self.log = Log()		
 		self._raw_TrochFuncs = OrderedDict()
 		self._raw_TrochFunctionals = OrderedDict()
+		self._functional_timestamp = 0
 
 	# register class to trans
 	def register(self, origin_class, target_class):
@@ -351,6 +352,7 @@ class TorchTransformer(nn.Module):
 				self._raw_TrochFunctionals[f] = getattr(F, f)
 				setattr(F, f, _ReplaceFunc(getattr(F,f), self._torchFunctionals))
 				
+		self._functional_timestamp = 0
 
 		self.log = model.forward(self.log)
 		if type(self.log) == tuple: #multiple output, just pick the first (all contains the same graph)
@@ -485,7 +487,9 @@ class TorchTransformer(nn.Module):
 			cur_log.graph[layer_name] = layer_name
 			cur_log.bottoms[layer_name] = bottoms
 			cur_log.cur_id = layer_name
-			cur_log.record_tensor_op.append('torch_{}_{}_{}'.format(function_name, inspect.stack()[2].lineno, len(bottoms)))
+			
+			if inspect.stack()[2].function == 'forward':
+				cur_log.record_tensor_op.append((layer_name, 'torch_{}_{}_{}'.format(function_name, inspect.stack()[2].lineno, len(bottoms))))
 		
 		# multi output
 		if not isinstance(out_tensor , torch.Tensor):
@@ -577,7 +581,9 @@ class TorchTransformer(nn.Module):
 		# if log input and is function type, store as an layer
 		if isinstance(raw_func, types.FunctionType):			
 			# use multiple address as name to prevent duplicate address
-			layer_name = "F.{}_{}{}{}".format(function_name, id(out_tensor), id(args), id(kwargs))			
+			# layer_name = "F.{}_{}{}{}".format(function_name, id(out_tensor), id(args), id(kwargs))		
+			layer_name = "F.{}_{}".format(function_name, self._functional_timestamp)
+			self._functional_timestamp += 1		
 			# replace with new address if still duplicate
 			while layer_name in cur_log.graph:
 			#if layer_name in cur_log.graph:
@@ -585,16 +591,18 @@ class TorchTransformer(nn.Module):
 				# tmp_list.append(out_tensor)
 				# tmp_tensor = copy.deepcopy(tmp_list[-1])
 				# tmp_tensor = tmp_list[-1].clone()				
-				tmp_tensor = torch.tensor([0])
+				# tmp_tensor = torch.tensor([0])
 				
 				# should not duplicate again?
 				# layer_name = layer_name.split('.')[0] + "F" + ".{}_{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs))				
-				layer_name = "F.{}_{}{}{}{}".format(function_name, id(tmp_tensor), id(args), id(kwargs), int((time.time()*100000)%1000000))
+				layer_name = "F.{}_{}".format(function_name , self._functional_timestamp)
+				self._functional_timestamp += 1
 
 			cur_log.graph[layer_name] = layer_name				
 			cur_log.bottoms[layer_name] = bottoms
-			cur_log.cur_id = layer_name			
-			cur_log.record_tensor_op.append('F_{}_{}_{}'.format(function_name, inspect.stack()[2].lineno, len(bottoms)))
+			cur_log.cur_id = layer_name		
+			if inspect.stack()[2].function == 'forward':	
+				cur_log.record_tensor_op.append((layer_name, 'F_{}_{}_{}'.format(function_name, inspect.stack()[2].lineno, len(bottoms))))
 		
 		# if multi-output
 		# if len(out_tensor) > 1:
