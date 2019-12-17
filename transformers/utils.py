@@ -158,7 +158,7 @@ class Log(object):
 		elif name == "data":
 			return self.cur_tensor.data		
 		
-		elif hasattr(self.cur_tensor, name):			
+		elif hasattr(self.cur_tensor, name):	 	
 			def wrapper(*args, **kwargs):				
 				func = self.cur_tensor.__getattribute__(name)
 				out_tensor = func(*args, **kwargs)

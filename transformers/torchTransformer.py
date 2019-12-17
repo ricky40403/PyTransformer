@@ -12,7 +12,6 @@ import pydot
 from graphviz import Digraph
 
 from .utils import _ReplaceFunc, Log, UnitLayer, dict_merge
-from .quantize import QuantMeasure
 
 
 
@@ -319,7 +318,7 @@ class TorchTransformer(nn.Module):
 			graph.write_png(save_name + ".png" )
 		return dot
 
-	def _build_graph(self, model, input_tensor = None):
+	def _build_graph(self, model, input_tensor = None, ignore_type=[]):
 
 		if input_tensor is None:
 			raise ValueError("Please set input tensor")
@@ -331,7 +330,7 @@ class TorchTransformer(nn.Module):
 
 
 		# tmp_model = self._trans_unit(copy.deepcopy(model))
-		self._trans_unit(model)
+		self._trans_unit(model, ignore_type)
 		# print(tmp_model)
 		
 		for f in dir(torch):
@@ -359,7 +358,7 @@ class TorchTransformer(nn.Module):
 			self.log = self.log[0]	
 		# self.log = tmp_model.forward(self.log)		
 
-		self._restore_unit(model)
+		self._restore_unit(model, ignore_type)
 
 		# reset back 
 		for f in self._raw_TrochFuncs:
@@ -370,15 +369,15 @@ class TorchTransformer(nn.Module):
 
 		# del tmp_model
 		
-	def _trans_unit(self, model):
+	def _trans_unit(self, model, ignore_type=[]):
 		# print("TRNS_UNIT")
 		for module_name in model._modules:
 			if type(model._modules[module_name]) == UnitLayer:
 				continue
 			# has children
 			if len(model._modules[module_name]._modules) > 0 and\
-				not (len(model._modules[module_name]._modules) == 1 and type(list(model._modules[module_name]._modules.values())[0]) == QuantMeasure):
-				model._modules[module_name] = self._trans_unit(model._modules[module_name])
+				not (len(model._modules[module_name]._modules) == 1 and type(list(model._modules[module_name]._modules.values())[0]) in ignore_type):
+				model._modules[module_name] = self._trans_unit(model._modules[module_name], ignore_type)
 			else:
 				unitlayer = UnitLayer(getattr(model, module_name))
 				setattr(model, module_name, unitlayer)
@@ -386,7 +385,7 @@ class TorchTransformer(nn.Module):
 		return model
 
 	
-	def _restore_unit(self, model):
+	def _restore_unit(self, model, ignore_type=[]):
 		# print("restore_UNIT")
 		for module_name in model._modules:
 			# has children
@@ -395,7 +394,7 @@ class TorchTransformer(nn.Module):
 				setattr(model, module_name, getattr(getattr(model, module_name), 'origin_layer'))
 
 			elif len(model._modules[module_name]._modules) > 0 and\
-				not (len(model._modules[module_name]._modules) == 1 and type(list(model._modules[module_name]._modules.values())[0]) == QuantMeasure):
+				not (len(model._modules[module_name]._modules) == 1 and type(list(model._modules[module_name]._modules.values())[0]) in ignore_type):
 				model._modules[module_name] = self._restore_unit(model._modules[module_name])
 
 		return model
@@ -406,7 +405,7 @@ class TorchTransformer(nn.Module):
 		"""
 		# print("Torch function")
 		function_name = raw_func.__name__
-  
+		
 		# torch function may has no input
 		# so check first
 		
@@ -560,7 +559,7 @@ class TorchTransformer(nn.Module):
 				cur_inputs = tuple(cur_inputs)
 			# one input
 			else:
-				cur_log = logs
+				cur_log = copy.deepcopy(logs)
 				cur_inputs = cur_log.cur_tensor
 				bottoms.append(cur_log.cur_id)
 
