@@ -58,7 +58,7 @@ class TorchTransformer(nn.Module):
 		else:
 			for module_name in model._modules:			
 				# has children
-				if len(model._modules[module_name]._modules) > 0:
+				if len(model._modules[module_name]._modules) > 0 and type(getattr(model, module_name)) not in self._register_dict:
 					self.trans_layers(model._modules[module_name], update)
 				else:
 					if type(getattr(model, module_name)) in self._register_dict:
